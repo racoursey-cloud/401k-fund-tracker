@@ -299,18 +299,18 @@ const supa = {
   async get(table, params='') {
     try {
       const r = await fetch(`/api/supabase/${table}${params}`, {headers:this.headers});
-      if(!r.ok) return null;
+      if(!r.ok) { console.error(`Supabase GET ${table} failed:`, r.status, await r.text()); return null; }
       return r.json();
-    } catch(e) { return null; }
+    } catch(e) { console.error(`Supabase GET ${table} error:`, e.message); return null; }
   },
   async post(table, body) {
     try {
       const r = await fetch(`/api/supabase/${table}`, {
         method:'POST', headers:{...this.headers,'Prefer':'return=representation'}, body:JSON.stringify(body)
       });
-      if(!r.ok) return null;
+      if(!r.ok) { console.error(`Supabase POST ${table} failed:`, r.status, await r.text()); return null; }
       return r.json();
-    } catch(e) { return null; }
+    } catch(e) { console.error(`Supabase POST ${table} error:`, e.message); return null; }
   },
   async getHoldings(ticker) {
     // Schema is row-per-holding: fund_ticker, holding_name, holding_ticker, weight, market_value, shares, asset_type, sector, indexed_at
@@ -330,7 +330,8 @@ const supa = {
   async saveHoldings(ticker, holdings, fundName) {
     try {
       // Delete old rows for this fund
-      await fetch(`/api/supabase/holdings_cache?fund_ticker=eq.${ticker}`, {method:'DELETE', headers:this.headers});
+      const delRes = await fetch(`/api/supabase/holdings_cache?fund_ticker=eq.${ticker}`, {method:'DELETE', headers:this.headers});
+      if(!delRes.ok) console.error(`Supabase DELETE holdings_cache failed:`, delRes.status, await delRes.text());
       // Insert one row per holding (batch)
       const now = new Date().toISOString();
       const rows = holdings.slice(0, 200).map(h => ({
@@ -702,7 +703,7 @@ async function runPipeline() {
   render();
   macroText = await fetchMacro();
   APP.macroText = macroText;
-  await sleep(8000); // rate limit buffer
+  await sleep(500); // brief pause before AI scoring
 
   // Step 4: AI scoring
   setPipeline(4, 4, 'STEP 4 / 4', 'AI scoring holdings → fund composites...');
@@ -1628,7 +1629,7 @@ async function renderApp() {
     <!-- Footer -->
     <div style="padding:8px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;justify-content:space-between;background:var(--surface)">
       <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Q2 APR–JUN 2026</span>
-      <span>Holdings from SEC EDGAR N-PORT · Prices via Tiingo · AI: claude-sonnet-4-6</span>
+      <span>Holdings from SEC EDGAR N-PORT · Prices via Tiingo · AI: claude-haiku-4-5</span>
     </div>
     ${renderPipelineOverlay()}
   `;

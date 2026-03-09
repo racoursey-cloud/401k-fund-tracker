@@ -524,24 +524,47 @@ async function fetchMacro() {
 // AI HOLDINGS SCORER
 // ═══════════════════════════════════════════════════════════════
 async function scoreHoldingsWithAI(fundsWithHoldings, macroContext) {
-  // Build a compact representation of all unique holdings across funds
-  const allHoldings = new Map(); // ticker/name → {name, ticker, assetCat, funds:[{fundTicker,pctVal}]}
-  fundsWithHoldings.forEach(f => {
-    (f.holdings || []).forEach(h => {
-      const key = h.ticker || h.name;
-      if(!allHoldings.has(key)) allHoldings.set(key, {...h, funds:[]});
-      allHoldings.get(key).funds.push({fund:f.ticker, pctVal:h.pctVal});
-    });
-  });
+  // Score in batches of 5 funds to stay under the 50k token/min rate limit.
+  // Holdings are trimmed dynamically to 90% cumulative weight (capped at 50),
+  // so concentrated active funds send fewer tokens and broad index funds send more.
+  const BATCH_SIZE = 5;
+  const allScores = {};
 
-  // For AI scoring, take the top holdings by fund weight (limit to keep prompt small)
-  // Group by fund, take top 20 holdings per fund
-  const holdingSummary = fundsWithHoldings.map(f => {
-    const top = (f.holdings||[]).slice(0,20).map(h=>`${h.name||h.ticker}(${h.pctVal.toFixed(1)}%,${h.assetCat||'?'})`).join(', ');
-    return `${f.ticker}: [${top}]`;
-  }).join('\n');
+  // Returns holdings that cumulatively cover >=90% of fund weight, capped at 50.
+  // For concentrated active funds this is typically 10-20 holdings.
+  // For broad index funds (e.g. FXAIX) this may be 30-50 holdings.
+  // Either way, each batch of 5 funds stays well under the 50k token/min limit.
+  function getTop90(holdings) {
+    if(!holdings?.length) return [];
+    let cum = 0;
+    const result = [];
+    for(const h of holdings) {
+      result.push(h);
+      cum += h.pctVal || 0;
+      if(cum >= 90) break;
+      if(result.length >= 50) break; // safety ceiling
+    }
+    return result;
+  }
 
-  const prompt = `You are a quantitative fund analyst. Based on the macro environment and holdings, score each fund.
+  const batches = [];
+  for(let i = 0; i < fundsWithHoldings.length; i += BATCH_SIZE) {
+    batches.push(fundsWithHoldings.slice(i, i + BATCH_SIZE));
+  }
+
+  for(let b = 0; b < batches.length; b++) {
+    if(b > 0) await sleep(8000); // 8s between batches to stay under rate limit
+
+    const batch = batches[b];
+    const holdingSummary = batch.map(f => {
+      const top = getTop90(f.holdings)
+        .map(h => `${h.name||h.ticker}(${h.pctVal.toFixed(1)}%,${h.assetCat||'?'})`).join(', ');
+      const covered = (f.holdings||[]).slice(0, top.length)
+        .reduce((s,h) => s + (h.pctVal||0), 0).toFixed(0);
+      return `${f.ticker} [${covered}% covered]: ${top}`;
+    }).join('\n');
+
+    const prompt = `You are a quantitative fund analyst. Based on the macro environment and holdings, score each fund.
 
 MACRO CONTEXT:
 ${macroContext || 'Gold ~$5100, DXY ~99 weakening, Fed 3.5%, "Sell America" theme, EAFE +8% YTD, EM +14% YTD, S&P500 -1.5% YTD'}
@@ -557,18 +580,28 @@ Score each fund on:
 Return ONLY valid JSON:
 {"scores":{"TICKER":{"macro":X,"manager":X,"roi":X},...}}`;
 
-  try {
-    const res = await fetch('/api/claude', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{role:'user',content:prompt}]})
-    });
-    if(!res.ok) return null;
-    const data = await res.json();
-    const text = (data.content||[]).find(b=>b.type==='text')?.text||'';
-    const clean = text.replace(/```json|```/g,'').trim();
-    return JSON.parse(clean).scores;
-  } catch(e) { console.warn('AI scoring error:', e); return null; }
+    for(let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if(attempt > 0) await sleep(attempt * 15000);
+        const res = await fetch('/api/claude', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+          body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:600, messages:[{role:'user',content:prompt}]})
+        });
+        if(res.status === 429) { console.warn(`Rate limit on batch ${b+1}/${batches.length}, retrying...`); continue; }
+        if(!res.ok) break;
+        const data = await res.json();
+        const text = (data.content||[]).find(c=>c.type==='text')?.text||'';
+        const clean = text.replace(/```json|```/g,'').trim();
+        const scores = JSON.parse(clean).scores;
+        Object.assign(allScores, scores);
+        console.log(`Scored batch ${b+1}/${batches.length}: ${Object.keys(scores).join(', ')}`);
+        break;
+      } catch(e) { console.warn(`Batch ${b+1} scoring error:`, e); break; }
+    }
+  }
+
+  return Object.keys(allScores).length > 0 ? allScores : null;
 }
 
 // AI scorer fallback (fund-level, no holdings)
@@ -583,18 +616,23 @@ Funds to score: ${tickers.join(', ')}
 Score macro (0-10), manager quality (0-10), predicted quarterly ROI (%).
 Return ONLY JSON: {"scores":{${seedExamples},...for all listed funds}}`;
 
-  try {
-    const res = await fetch('/api/claude', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1500, messages:[{role:'user',content:prompt}]})
-    });
-    if(!res.ok) return null;
-    const data = await res.json();
-    const text = (data.content||[]).find(b=>b.type==='text')?.text||'';
-    const clean = text.replace(/```json|```/g,'').trim();
-    return JSON.parse(clean).scores;
-  } catch(e) { return null; }
+  for(let attempt=0; attempt<3; attempt++) {
+    try {
+      if(attempt > 0) await sleep(attempt * 15000);
+      const res = await fetch('/api/claude', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+        body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1500, messages:[{role:'user',content:prompt}]})
+      });
+      if(res.status === 429) { console.warn('Rate limit hit on fallback scorer, retrying...'); continue; }
+      if(!res.ok) return null;
+      const data = await res.json();
+      const text = (data.content||[]).find(b=>b.type==='text')?.text||'';
+      const clean = text.replace(/```json|```/g,'').trim();
+      return JSON.parse(clean).scores;
+    } catch(e) { return null; }
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -651,7 +689,7 @@ async function runPipeline() {
   const tiingo = {}, fundsWithHoldings = [];
   let aiScores = null, macroText = null;
 
-  setPipeline(0, 4, 'STEP 1 / 4', `Fetching holdings from SEC EDGAR for ${funds.length} funds...`);
+  setPipeline(0, 4, 'STEP 1 / 4', `Loading holdings for ${funds.length} funds (cached or SEC EDGAR)...`);
   render();
 
   // Step 1: EDGAR holdings
@@ -698,15 +736,16 @@ async function runPipeline() {
     await sleep(200);
   }
 
-  // Step 3: Macro web search
+  // Step 3: Macro web search — always fresh, drives new investment thesis
   setPipeline(3, 4, 'STEP 3 / 4', 'Searching live macro data: gold, DXY, rates, VIX, global returns...');
   render();
   macroText = await fetchMacro();
   APP.macroText = macroText;
-  await sleep(500); // brief pause before AI scoring
 
-  // Step 4: AI scoring
-  setPipeline(4, 4, 'STEP 4 / 4', 'AI scoring holdings → fund composites...');
+  // Step 4: AI scoring — always runs with fresh macro + cached holdings
+  // Holdings are already cached (90-day Supabase cache), so Claude gets
+  // current macro context without any EDGAR re-fetching overhead
+  setPipeline(4, 4, 'STEP 4 / 4', 'AI scoring (fresh macro + cached holdings)...');
   render();
   const fundsWithHoldingsData = fundsWithHoldings.filter(f=>f.holdings?.length);
   const fundsWithoutHoldings = fundsWithHoldings.filter(f=>!f.holdings?.length);

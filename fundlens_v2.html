@@ -392,50 +392,78 @@ async function fetchSectorMomentum(){
 async function fetchFREDSeries(seriesId){
   try{
     const r=await fetch(`/api/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5`,{signal:fetchSignal(8000)});
-    if(!r.ok)return null;
+    if(!r.ok){
+      const txt=await r.text().catch(()=>'');
+      console.error(`FRED ${seriesId}: HTTP ${r.status} — ${txt.slice(0,120)}`);
+      return null;
+    }
     const data=await r.json();
     const obs=data?.observations?.filter(o=>o.value!=='.');
-    return obs?.length?parseFloat(obs[0].value):null;
-  }catch(e){return null}
+    const val=obs?.length?parseFloat(obs[0].value):null;
+    if(val!==null) console.log(`FRED ${seriesId}: ${val} (${obs[0].date})`);
+    else console.warn(`FRED ${seriesId}: response OK but no usable observations`);
+    return val;
+  }catch(e){
+    console.error(`FRED ${seriesId} fetch error:`,e.message);
+    return null;
+  }
 }
 
 async function fetchGDELT(query,maxRecords=8){
   try{
     const q=encodeURIComponent(query);
     const r=await fetch(`/api/gdelt?query=${q}&mode=artlist&maxrecords=${maxRecords}&format=json`,{signal:fetchSignal(10000)});
-    if(!r.ok)return[];
+    if(!r.ok){
+      const txt=await r.text().catch(()=>'');
+      console.error(`GDELT "${query.slice(0,40)}…": HTTP ${r.status} — ${txt.slice(0,120)}`);
+      return[];
+    }
     const data=await r.json();
-    return(data?.articles||[]).map(a=>a.title||a.url||'').filter(Boolean).slice(0,maxRecords);
-  }catch(e){return[]}
+    const titles=(data?.articles||[]).map(a=>a.title||a.url||'').filter(Boolean).slice(0,maxRecords);
+    console.log(`GDELT "${query.slice(0,40)}…": ${titles.length} headlines`);
+    return titles;
+  }catch(e){
+    console.error(`GDELT fetch error:`,e.message);
+    return[];
+  }
 }
 
 async function buildWorldIntelligence(setPipelineDetail){
-  setPipelineDetail('Fetching FRED economic data series...');
+  setPipelineDetail('Fetching FRED economic data (11 series)...');
+  console.group('Step 3 — World Intelligence');
   
-  // Fetch FRED series in parallel
+  // Fetch FRED series sequentially so we can update the pipeline detail per series
   const fredKeys=Object.keys(FRED_SERIES);
-  const fredValues=await Promise.allSettled(fredKeys.map(k=>fetchFREDSeries(k)));
   const fredData={};
-  fredKeys.forEach((k,i)=>{fredData[k]=fredValues[i].status==='fulfilled'?fredValues[i].value:null});
+  for(let i=0;i<fredKeys.length;i++){
+    const k=fredKeys[i];
+    setPipelineDetail(`FRED ${i+1}/${fredKeys.length}: ${FRED_SERIES[k]}...`);
+    fredData[k]=await fetchFREDSeries(k);
+  }
   
   const fredAvailable=Object.values(fredData).filter(v=>v!==null).length;
-  console.log(`FRED: ${fredAvailable}/${fredKeys.length} series fetched`);
+  console.log(`FRED total: ${fredAvailable}/${fredKeys.length} series fetched successfully`);
+  if(fredAvailable===0) console.error('FRED: 0 series fetched — check FRED_KEY in Railway /health endpoint');
   
   // Fetch GDELT geopolitical and market news
-  setPipelineDetail('Fetching GDELT geopolitical intelligence...');
-  const [geoNews, tradeNews, commodityNews, sectorNews] = await Promise.allSettled([
-    fetchGDELT('geopolitical conflict trade shipping sanctions embargo 2026', 8),
-    fetchGDELT('US tariffs trade war China Europe economy 2026', 8),
-    fetchGDELT('Federal Reserve interest rates inflation dollar 2026', 8),
-    fetchGDELT('oil gold commodities energy materials sector performance 2026', 6),
-  ]);
+  setPipelineDetail('Fetching GDELT geopolitical intelligence (4 query themes)...');
+  const gdeltQueries=[
+    ['geopolitical conflict trade shipping sanctions embargo 2026', 8],
+    ['US tariffs trade war China Europe economy 2026', 8],
+    ['Federal Reserve interest rates inflation dollar 2026', 8],
+    ['oil gold commodities energy materials sector performance 2026', 6],
+  ];
+  const gdeltResults=[];
+  for(let i=0;i<gdeltQueries.length;i++){
+    setPipelineDetail(`GDELT query ${i+1}/${gdeltQueries.length}: ${gdeltQueries[i][0].slice(0,40)}...`);
+    gdeltResults.push(await fetchGDELT(...gdeltQueries[i]));
+  }
   
-  const allHeadlines = [
-    ...(geoNews.value||[]),
-    ...(tradeNews.value||[]),
-    ...(commodityNews.value||[]),
-    ...(sectorNews.value||[]),
-  ].filter((h,i,arr)=>arr.indexOf(h)===i).slice(0,28); // deduplicate, cap at 28
+  const allHeadlines=[...gdeltResults[0],...gdeltResults[1],...gdeltResults[2],...gdeltResults[3]]
+    .filter((h,i,arr)=>arr.indexOf(h)===i).slice(0,28);
+  console.log(`GDELT total: ${allHeadlines.length} unique headlines collected`);
+  if(allHeadlines.length===0) console.error('GDELT: 0 headlines — API may be rate-limited or unreachable');
+  console.groupEnd();
   
   return{fredData, headlines:allHeadlines, fredAvailable, headlineCount:allHeadlines.length};
 }

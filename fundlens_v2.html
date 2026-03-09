@@ -363,7 +363,7 @@ async function fetchEdgarHoldings(ticker, fundName) {
     // Step 1: Find CIK via EDGAR full-text search (adsh + ciks[] are in _source directly)
     const query = encodeURIComponent(`"${ticker}" OR "${fundName.split(' ').slice(0,3).join(' ')}"`);
     const searchUrl = `/api/efts/LATEST/search-index?q=${query}&forms=NPORT-P`;
-    const res = await fetch(CORS + encodeURIComponent(searchUrl), {signal:AbortSignal.timeout(12000)});
+    const res = await fetch(searchUrl, {signal:AbortSignal.timeout(12000)});
     if(!res.ok) return null;
     const data = await res.json();
     const hits = data?.hits?.hits;
@@ -379,7 +379,7 @@ async function fetchEdgarHoldings(ticker, fundName) {
     // Step 2: Use submissions API to find the MOST RECENT NPORT-P filing
     // (full-text search index can return stale results)
     const subUrl = `/api/edgar/submissions/CIK${padded}.json`;
-    const subRes = await fetch(CORS + encodeURIComponent(subUrl), {signal:AbortSignal.timeout(12000)});
+    const subRes = await fetch(subUrl, {signal:AbortSignal.timeout(12000)});
     if(!subRes.ok) {
       // Fallback: use accession number from search result directly
       const adsh = src.adsh;
@@ -413,7 +413,7 @@ async function fetchNportByAccession(cik, accNo, ticker) {
     // Get filing index
     const accNoDashes = accNo.replace(/-/g,'');
     const indexUrl = `/api/www4sec/Archives/edgar/data/${cik}/${accNoDashes}/`;
-    const idxRes = await fetch(CORS + encodeURIComponent(indexUrl), {signal:AbortSignal.timeout(10000)});
+    const idxRes = await fetch(indexUrl, {signal:AbortSignal.timeout(10000)});
     if(!idxRes.ok) return null;
     const idxHtml = await idxRes.text();
     // Find the primary XML file
@@ -422,7 +422,7 @@ async function fetchNportByAccession(cik, accNo, ticker) {
     const xmlFile = xmlMatch[1].startsWith('/') ? `/api/www4sec${xmlMatch[1]}` : `${indexUrl}${xmlMatch[1]}`;
 
     // Fetch and parse XML
-    const xmlRes = await fetch(CORS + encodeURIComponent(xmlFile), {signal:AbortSignal.timeout(20000)});
+    const xmlRes = await fetch(xmlFile, {signal:AbortSignal.timeout(20000)});
     if(!xmlRes.ok) return null;
     const xmlText = await xmlRes.text();
     return parseNportXML(xmlText, ticker);
@@ -478,7 +478,7 @@ async function fetchTiingo(ticker) {
   const fmt = d => d.toISOString().split('T')[0];
   const url = `/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`;
   try {
-    const r = await fetch(CORS + encodeURIComponent(url), {signal:AbortSignal.timeout(10000)});
+    const r = await fetch(url, {signal:AbortSignal.timeout(10000)});
     if(!r.ok) return null;
     const data = await r.json();
     if(!Array.isArray(data) || data.length < 20) return null;

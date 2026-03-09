@@ -13,6 +13,12 @@ const SUPA_KEY      = process.env.SUPA_KEY      || '';
 const FRED_KEY      = process.env.FRED_KEY      || '';   // Free at fredaccount.stlouisfed.org
 const FMP_KEY       = process.env.FMP_KEY       || '';   // Free at financialmodelingprep.com (250 req/day)
 
+// ── Tiingo daily price cache ─────────────────────────────────────
+// Survives page refreshes; serves stale data when 429 rate limit is hit.
+// Key: ticker symbol. Value: { data: <array>, date: 'YYYY-MM-DD' }
+const tiingoDailyCache = {};
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -90,7 +96,7 @@ async function liveHealthCheck() {
     if (!SUPA_URL || !SUPA_KEY) { results.supabase = { ok: false, error: 'SUPA_URL or SUPA_KEY not set' }; return resolve(); }
     const hostname = SUPA_URL.replace('https://', '').replace('http://', '');
     const req = https.request({
-      hostname, path: '/rest/v1/runs?limit=1', method: 'GET',
+      hostname, path: '/rest/v1/prediction_cycles?limit=1', method: 'GET',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY },
     }, res => {
       let d = ''; res.on('data', c => d += c);
@@ -203,6 +209,65 @@ const server = http.createServer(async (req, res) => {
     if (!TIINGO_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'TIINGO_KEY not set' })); return; }
     const tiingoPath = pathname.replace('/api/tiingo', '') + '?' +
       new URLSearchParams({ ...parsed.query, token: TIINGO_KEY }).toString();
+
+    // Cache daily price requests server-side so the pipeline continues even
+    // when Tiingo's hourly limit is hit — serves previous data transparently.
+    const tickerMatch = pathname.match(/\/daily\/([^\/]+)\/prices/);
+    const cacheTicker = tickerMatch?.[1]?.toUpperCase();
+
+    if (cacheTicker) {
+      const today = todayStr();
+      const cached = tiingoDailyCache[cacheTicker];
+
+      // Already have today's data — return immediately
+      if (cached && cached.date === today) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'HIT' });
+        res.end(JSON.stringify(cached.data));
+        return;
+      }
+
+      // Fetch from Tiingo, buffer so we can cache it
+      const upstream = https.request(
+        { hostname: 'api.tiingo.com', path: tiingoPath, method: 'GET', headers: { 'Content-Type': 'application/json' } },
+        upstreamRes => {
+          let buf = '';
+          upstreamRes.on('data', chunk => buf += chunk);
+          upstreamRes.on('end', () => {
+            if (upstreamRes.statusCode === 200) {
+              try { tiingoDailyCache[cacheTicker] = { data: JSON.parse(buf), date: today }; } catch(e) {}
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(buf);
+            } else if (upstreamRes.statusCode === 429) {
+              if (cached) {
+                // Rate limited — serve stale cache transparently
+                console.warn('Tiingo 429 for ' + cacheTicker + ' — serving cached data from ' + cached.date);
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'STALE' });
+                res.end(JSON.stringify(cached.data));
+              } else {
+                console.warn('Tiingo 429 for ' + cacheTicker + ' — no cache, returning 429');
+                res.writeHead(429, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(buf);
+              }
+            } else {
+              res.writeHead(upstreamRes.statusCode, { 'Content-Type': upstreamRes.headers['content-type'] || 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(buf);
+            }
+          });
+        }
+      );
+      upstream.on('error', err => {
+        if (cached && !res.headersSent) {
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'STALE' });
+          res.end(JSON.stringify(cached.data));
+        } else if (!res.headersSent) {
+          res.writeHead(502); res.end(JSON.stringify({ error: 'Tiingo proxy error', detail: err.message }));
+        }
+      });
+      upstream.end();
+      return;
+    }
+
+    // Non-price Tiingo request — pass through
     proxyRequest(res, { hostname: 'api.tiingo.com', path: tiingoPath, method: 'GET', headers: { 'Content-Type': 'application/json' } }, null);
     return;
   }
@@ -214,8 +279,16 @@ const server = http.createServer(async (req, res) => {
     const needsBody = ['POST', 'PATCH', 'PUT'].includes(req.method);
     const body = needsBody ? await readBody(req) : null;
     const hostname = SUPA_URL.replace('https://', '').replace('http://', '');
-    const headers = { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Prefer': req.headers['prefer'] || '' };
-    if (body) headers['Content-Length'] = Buffer.byteLength(body);
+    // Don't send Content-Type on DELETE — some Supabase versions reject it with no body
+    const headers = {
+      'apikey': SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY,
+      'Prefer': req.headers['prefer'] || 'return=minimal',
+    };
+    if (needsBody) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(body);
+    }
     proxyRequest(res, { hostname, path: supaPath, method: req.method, headers }, body);
     return;
   }

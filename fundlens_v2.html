@@ -210,6 +210,7 @@ let APP = {
   worldData:null,       // FRED + GDELT raw data
   sectorScores:null,    // {Technology:{score,reason}, ...}
   investmentThesis:null, // Full thesis object from Claude
+  tiingoStale:false,     // true if Tiingo served cached data due to rate limit
   dominantTheme:null,
   dataQuality:null,     // {fredOk,gdeltOk,fredSeriesCount,headlineCount,claudeUsedWebSearch,assessedAt}
   // Prediction tracking
@@ -241,7 +242,7 @@ function getWeights(){return activeProfile()?.weights||DEFAULT_WEIGHTS}
 // ═══════════════════════════════════════════════════════════════
 const supa = {
   h:{get(table,params=''){return fetch(`/api/supabase/${table}${params}`).then(r=>r.ok?r.json():null).catch(()=>null)},
-     post(table,body,prefer='return=representation'){return fetch(`/api/supabase/${table}`,{method:'POST',headers:{'Content-Type':'application/json','Prefer':prefer},body:JSON.stringify(body)}).then(r=>r.ok?r.json():null).catch(()=>null)},
+     post(table,body,prefer='return=representation'){return fetch(`/api/supabase/${table}`,{method:'POST',headers:{'Content-Type':'application/json','Prefer':prefer},body:JSON.stringify(body)}).then(r=>{if(!r.ok){r.text().then(t=>console.error('Supabase POST failed:',table,r.status,t.slice(0,200)));return null;}return r.json().catch(()=>null);}).catch(e=>{console.error('Supabase POST error:',table,e.message);return null;})},
      del(table,params=''){return fetch(`/api/supabase/${table}${params}`,{method:'DELETE',headers:{'Prefer':'return=minimal'}}).then(r=>r.ok).catch(()=>false)}
   },
   async getHoldings(ticker){
@@ -250,10 +251,16 @@ const supa = {
     return{holdings:rows.map(r=>({name:r.holding_name||'',ticker:r.holding_ticker||'',pctVal:r.weight||0,valUSD:r.market_value||0,assetCat:r.asset_type||'',sector:r.sector||'',cusip:''})),fetchedAt:rows[0].indexed_at};
   },
   async saveHoldings(ticker,holdings,fundName){
-    await this.h.del('holdings_cache',`?fund_ticker=eq.${ticker}`);
+    // Try delete first; if it fails (503/RLS), proceed with upsert anyway
+    const deleted=await this.h.del('holdings_cache',`?fund_ticker=eq.${ticker}`);
+    if(!deleted){
+      console.warn(`holdings_cache DELETE failed for ${ticker} — will attempt upsert`);
+      await new Promise(r=>setTimeout(r,500)); // small delay before retry
+    }
     const now=new Date().toISOString();
     const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,indexed_at:now}));
-    return this.h.post('holdings_cache',rows);
+    // resolution=ignore-duplicates: skip conflicts so partial saves still work
+    return this.h.post('holdings_cache',rows,'resolution=ignore-duplicates,return=minimal');
   },
   // Sector mapping cache
   async getSectorMapping(ticker){
@@ -352,7 +359,11 @@ async function fetchTiingo(ticker){
   const fmt=d=>d.toISOString().split('T')[0];
   try{
     const r=await fetch(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`,{signal:fetchSignal(10000)});
+    if(r.status===429){APP.tiingoStale=true;return null;} // No cache available at all
     if(!r.ok)return null;
+    // Server returned cached data (X-Tiingo-Cache: STALE or HIT from previous day)
+    const cacheHeader=r.headers.get('X-Tiingo-Cache');
+    if(cacheHeader==='STALE')APP.tiingoStale=true;
     const data=await r.json();
     if(!Array.isArray(data)||data.length<20)return null;
     const prices=data.map(d=>d.adjClose||d.close).filter(Boolean);
@@ -664,7 +675,7 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
           messages:[{role:'user',content:prompt}]
         })
       });
-      if(res.status===429){console.warn('Rate limit on sector scoring, retrying...');continue}
+      if(res.status===429){console.warn('Rate limit on sector scoring, retrying...');await sleep(15000);continue}
       if(!res.ok)break;
       const data=await res.json();
       const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
@@ -675,6 +686,21 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
       return JSON.parse(jsonMatch[0]);
     }catch(e){console.warn('Sector scoring attempt',attempt+1,'failed:',e.message)}
   }
+  // All attempts failed — final fallback: try once more WITHOUT web_search (simpler response)
+  try{
+    console.warn('Sector scoring: retrying without web_search as final fallback');
+    const res=await fetch('/api/claude',{
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1400,messages:[{role:'user',content:prompt}]})
+    });
+    if(res.ok){
+      const data=await res.json();
+      const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+      const clean=text.replace(/```json|```/g,'').trim();
+      const jsonMatch=clean.match(/{[\s\S]*}/);
+      if(jsonMatch)return JSON.parse(jsonMatch[0]);
+    }
+  }catch(e){console.error('Sector scoring final fallback failed:',e.message)}
   return null;
 }
 
@@ -1058,7 +1084,7 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
   const closesAt=new Date(Date.now()+90*86400000).toISOString();
   
   // Save prediction cycle
-  await supa.savePredictionCycle({
+  const cycleResult=await supa.savePredictionCycle({
     id:cycleId,
     user_id:prof.id,
     created_at:now,
@@ -1072,6 +1098,7 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
     risk_tolerance:prof.risk||5,
   });
   
+  if(!cycleResult){console.error('savePredictionCycle FAILED — check Supabase table schema and RLS policies');}
   // Save individual fund predictions
   const predictions=rankedFunds.map(f=>({
     cycle_id:cycleId,
@@ -1136,7 +1163,7 @@ function fetchSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),
 
 async function runPipeline(){
   if(APP.loading)return;
-  APP.loading=true;APP.source='loading';
+  APP.loading=true;APP.source='loading';APP.tiingoStale=false;
   const funds=getFunds();
   const weights=getWeights();
   const tiingo={};
@@ -1243,11 +1270,15 @@ async function runPipeline(){
 // DATA QUALITY WARNING BANNER
 // ═══════════════════════════════════════════════════════════════
 function renderDataQualityWarning(){
+  const tiingoBanner=APP.tiingoStale?`<div style="background:#EFF6FF;border-bottom:1px solid #BFDBFE;padding:8px 24px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:13px">📦</span>
+    <div style="font-size:12px;color:#1D4ED8"><b>Tiingo: using yesterday's cached prices</b> — hourly limit reached. Momentum & Sharpe scores are from the previous session. Scores are still valid; refresh tomorrow for live prices.</div>
+  </div>`:'';
   const dq=APP.dataQuality;
-  if(!dq||dq.staleness==='live')return'';
+  if(!dq||dq.staleness==='live')return tiingoBanner;
 
   if(dq.staleness==='stale'){
-    return`<div style="background:var(--red-bg);border-bottom:2px solid var(--red-bd);padding:9px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    return tiingoBanner+`<div style="background:var(--red-bg);border-bottom:2px solid var(--red-bd);padding:9px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <span style="font-size:14px;flex-shrink:0">⚠️</span>
       <div>
         <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:2px">Macro data unavailable — scores reflect AI training knowledge, not live market conditions</div>
@@ -1264,7 +1295,7 @@ function renderDataQualityWarning(){
   const missing=[];
   if(!dq.fredOk)missing.push(`FRED economic data (${dq.fredSeriesCount}/${dq.fredSeriesTotal} series fetched — check FRED_KEY in Railway)`);
   if(!dq.gdeltOk)missing.push(`GDELT geopolitical news (${dq.headlineCount} headlines — GDELT may be temporarily rate-limited)`);
-  return`<div style="background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+  return tiingoBanner+`<div style="background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
     <span style="font-size:13px;flex-shrink:0">◑</span>
     <div>
       <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:2px">Partial live data — sector thesis may be less precise than usual</div>

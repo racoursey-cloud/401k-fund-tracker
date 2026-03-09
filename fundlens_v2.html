@@ -508,7 +508,7 @@ async function fetchMacro() {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
       body: JSON.stringify({
-        model:'claude-sonnet-4-6', max_tokens:1000,
+        model:'claude-haiku-4-5-20251001', max_tokens:1000,
         tools:[{type:'web_search_20250305',name:'web_search'}],
         messages:[{role:'user',content:`Today is ${today}. Search for current values of: Gold spot price, DXY index, WTI crude, VIX, Fed funds rate, US 10yr yield, Core PCE (latest YoY), nonfarm payrolls (latest), MSCI EAFE YTD, MSCI EM YTD, S&P 500 YTD, and any dominant market theme. Reply with a concise 3-sentence summary of the macro environment as it affects US-available mutual funds. End with: MACRO_JSON:{"gold":X,"dxy":X,"vix":X,"fed":"X%","t10y":"X%","pce":"X%","sp500_ytd":"X%","eafe_ytd":"X%","em_ytd":"X%","theme":"..."}`}]
       })
@@ -560,7 +560,7 @@ Return ONLY valid JSON:
     const res = await fetch('/api/claude', {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:1200, messages:[{role:'user',content:prompt}]})
+      body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{role:'user',content:prompt}]})
     });
     if(!res.ok) return null;
     const data = await res.json();
@@ -586,7 +586,7 @@ Return ONLY JSON: {"scores":{${seedExamples},...for all listed funds}}`;
     const res = await fetch('/api/claude', {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:1500, messages:[{role:'user',content:prompt}]})
+      body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1500, messages:[{role:'user',content:prompt}]})
     });
     if(!res.ok) return null;
     const data = await res.json();

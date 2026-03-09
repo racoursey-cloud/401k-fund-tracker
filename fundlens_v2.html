@@ -1121,7 +1121,7 @@ function renderDataQualityWarning(){
 // ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData={name:'',risk:5,contribution:250,frequency:'biweekly',funds:[...DEFAULT_FUNDS],fundInput:''};
+let wizardData={name:'',risk:5,funds:[...DEFAULT_FUNDS],fundInput:''};
 
 function renderWizard(){
   const step=APP.wizardStep;
@@ -1139,15 +1139,6 @@ function renderWizard(){
         <input type="range" id="wRisk" min="1" max="9" value="${wizardData.risk}" oninput="wizardData.risk=parseInt(this.value);document.getElementById('riskLabel').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:6px;accent-color:var(--accent)">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:16px"><span>1 — Protect capital above all</span><span>9 — Maximize gains, accept risk</span></div>
         <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">${riskDescription(wizardData.risk)}</div>
-        <div style="display:flex;gap:12px">
-          <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution</label>
-            <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
-            <input type="number" value="${wizardData.contribution}" min="0" oninput="wizardData.contribution=parseFloat(this.value)||0" style="padding-left:22px"></div></div>
-          <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Frequency</label>
-            <select onchange="wizardData.frequency=this.value">
-              ${['weekly','biweekly','semimonthly','monthly'].map(f=>`<option value="${f}" ${wizardData.frequency===f?'selected':''}>${f}</option>`).join('')}
-            </select></div>
-        </div>
       </div>`;
   }else if(step===2){
     const chips=wizardData.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFund('${f.ticker}')">×</button></span>`).join(' ');
@@ -1169,7 +1160,6 @@ function renderWizard(){
       <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:left;font-size:12px;color:var(--text2)">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Risk Tolerance</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/9 (${riskLabel(wizardData.risk)})</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Contribution</span><span style="font-weight:700;color:var(--text)">$${wizardData.contribution} ${wizardData.frequency}</span></div>
       </div>
     </div>`;
   }
@@ -1215,7 +1205,7 @@ function wizardNext(){
 function wizardFinish(){
   const id='user_'+Date.now();
   const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,
-    goals:'',contribution:wizardData.contribution,frequency:wizardData.frequency,
+    goals:'',
     funds:wizardData.funds,weights:DEFAULT_WEIGHTS,createdAt:new Date().toISOString()};
   APP.profiles.push(profile);APP.activeProfile=id;saveProfiles();
   APP.wizard=false;
@@ -1464,8 +1454,6 @@ function renderThesis(){
 // ═══════════════════════════════════════════════════════════════
 function renderPortfolio(){
   const prof=activeProfile();
-  const CONTRIB=prof?.contribution??250;
-  const FREQ=prof?.frequency??'biweekly';
   const rt=prof?.risk||5;
   const alloc=APP.allocationResult||buildAllocation(APP.funds,rt);
   
@@ -1495,9 +1483,9 @@ function renderPortfolio(){
     <!-- Metrics -->
     <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
       <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Weighted ROI</div><div class="metric-value pos">+${wROI.toFixed(2)}%</div><div class="metric-sub">Predicted 90 days</div></div>
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Est. Gain / $${CONTRIB}</div><div class="metric-value">$${(CONTRIB*wROI/100).toFixed(2)}</div><div class="metric-sub">${FREQ} contribution</div></div>
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Avg Fund Score</div><div class="metric-value">${(alloc.reduce((s,f)=>s+f.composite,0)/alloc.length).toFixed(2)}</div><div class="metric-sub">allocation-weighted</div></div>
       <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Top Fund</div><div class="metric-value" style="font-size:20px">${alloc[0]?.ticker||'—'}</div><div class="metric-sub">${(alloc[0]?.allocationPct||0).toFixed(1)}% · ${alloc[0]?.tier?.emoji||''} ${alloc[0]?.tier?.label||''}</div></div>
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Avoid (Weak)</div><div class="metric-value neg">${avoidFunds.length}</div><div class="metric-sub">zero contribution</div></div>
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Avoid (Weak)</div><div class="metric-value neg">${avoidFunds.length}</div><div class="metric-sub">funds to avoid</div></div>
     </div>
     
     <div style="display:flex;gap:24px;flex-wrap:wrap">
@@ -1523,14 +1511,13 @@ function renderPortfolio(){
             <div class="pbar-wrap"><div class="pbar-fill" style="width:${f.allocationPct}%;background:${col}"></div></div>
             <div style="display:flex;justify-content:space-between;margin-top:4px">
               <span style="font-size:11px;color:var(--text3)">${f.name}${topSector?` · primary: ${topSector[0]} ${topSector[1].toFixed(0)}%`:''}</span>
-              <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.allocationPct/100).toFixed(0)} of $${CONTRIB}</span>
             </div>
             ${f.alert?`<div style="font-size:10px;color:var(--amber);margin-top:2px">⚠ ${f.alert}</div>`:''}
           </div>`;
         }).join('')}
         
         ${avoidFunds.length?`<div style="margin-top:16px;padding:14px;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:8px">
-          <div class="label" style="color:var(--red);margin-bottom:8px">Avoid — Zero Contribution Recommended</div>
+          <div class="label" style="color:var(--red);margin-bottom:8px">Avoid — Do Not Allocate</div>
           ${avoidFunds.map(f=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--red-bd);font-size:12px">
             <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--red)">${f.ticker}</span>
             <span style="color:var(--text2)">${f.name}</span>
@@ -1551,7 +1538,6 @@ function renderPortfolio(){
             </div>
             <div style="display:flex;gap:8px">
               <span style="font-size:11px;font-weight:700;color:${COLORS[i%COLORS.length]}">${f.allocationPct.toFixed(1)}%</span>
-              <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.allocationPct/100).toFixed(0)}</span>
             </div>
           </div>`).join('')}
         </div>
@@ -1804,13 +1790,7 @@ function renderSettings(){
           <label class="label" style="display:block;margin-bottom:5px">Risk Tolerance: <span id="sRisk" style="font-family:'JetBrains Mono',monospace">${prof.risk}/9 — ${riskLabel(prof.risk)}</span></label>
           <input type="range" min="1" max="9" value="${prof.risk}" oninput="updateProfile('risk',parseInt(this.value));document.getElementById('sRisk').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:4px;accent-color:var(--accent)">
           <div style="background:var(--surface2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);margin-bottom:14px">${riskDescription(prof.risk)}</div>
-          <div style="display:flex;gap:10px">
-            <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution ($)</label>
-              <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
-              <input type="number" value="${prof.contribution??250}" min="0" onchange="updateProfile('contribution',parseFloat(this.value)||0)" style="padding-left:22px"></div></div>
-            <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Frequency</label>
-              <select onchange="updateProfile('frequency',this.value)">${['weekly','biweekly','semimonthly','monthly'].map(f=>`<option value="${f}" ${(prof.frequency||'biweekly')===f?'selected':''}>${f}</option>`).join('')}</select></div>
-          </div>
+
         </div>
       </div>
       

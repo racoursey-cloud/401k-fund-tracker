@@ -104,11 +104,69 @@ async function liveHealthCheck() {
     req.end();
   });
 
-  // FRED (optional — soft check)
-  results.fred = FRED_KEY ? { ok: true, note: 'Key present' } : { ok: false, note: 'Optional — app uses Claude web search fallback' };
+  // FRED — live test call (fetch latest Fed Funds Rate — single observation)
+  await new Promise(resolve => {
+    if (!FRED_KEY) { results.fred = { ok: false, note: 'FRED_KEY not set — register free at fredaccount.stlouisfed.org' }; return resolve(); }
+    const fredPath = '/fred/series/observations?series_id=DFF&sort_order=desc&limit=1&api_key=' + FRED_KEY + '&file_type=json';
+    const req = https.request({
+      hostname: 'api.stlouisfed.org', path: fredPath, method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    }, res => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const parsed = JSON.parse(d);
+            const val = parsed?.observations?.[0]?.value;
+            const date = parsed?.observations?.[0]?.date;
+            results.fred = { ok: true, status: 200, series: 'DFF', latestValue: val, latestDate: date };
+          } catch(e) {
+            results.fred = { ok: false, status: 200, error: 'Response parsed but unexpected shape — ' + d.slice(0, 80) };
+          }
+        } else {
+          try { results.fred = { ok: false, status: res.statusCode, error: JSON.parse(d)?.error_message || d.slice(0, 120) }; }
+          catch(e) { results.fred = { ok: false, status: res.statusCode, error: d.slice(0, 120) }; }
+        }
+        resolve();
+      });
+    });
+    req.on('error', err => { results.fred = { ok: false, error: err.message }; resolve(); });
+    req.end();
+  });
 
-  // FMP (optional — soft check)
-  results.fmp = FMP_KEY ? { ok: true, note: 'Key present' } : { ok: false, note: 'Optional — app uses Claude sector classification fallback' };
+  // FMP — live test call (profile lookup for SPY — lightweight, always available)
+  await new Promise(resolve => {
+    if (!FMP_KEY) { results.fmp = { ok: false, note: 'FMP_KEY not set — register free at financialmodelingprep.com (250 req/day)' }; return resolve(); }
+    const fmpPath = '/api/v3/profile/SPY?apikey=' + FMP_KEY;
+    const req = https.request({
+      hostname: 'financialmodelingprep.com', path: fmpPath, method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    }, res => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const parsed = JSON.parse(d);
+            const sector = parsed?.[0]?.sector || null;
+            const name = parsed?.[0]?.companyName || null;
+            if (sector || name) {
+              results.fmp = { ok: true, status: 200, testTicker: 'SPY', sector, name };
+            } else {
+              results.fmp = { ok: false, status: 200, error: 'Response OK but empty — key may be invalid or daily limit reached' };
+            }
+          } catch(e) {
+            results.fmp = { ok: false, status: 200, error: 'Response parsed but unexpected shape — ' + d.slice(0, 80) };
+          }
+        } else {
+          try { results.fmp = { ok: false, status: res.statusCode, error: JSON.parse(d)?.message || d.slice(0, 120) }; }
+          catch(e) { results.fmp = { ok: false, status: res.statusCode, error: d.slice(0, 120) }; }
+        }
+        resolve();
+      });
+    });
+    req.on('error', err => { results.fmp = { ok: false, error: err.message }; resolve(); });
+    req.end();
+  });
 
   return results;
 }

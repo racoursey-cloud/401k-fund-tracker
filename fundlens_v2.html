@@ -289,7 +289,7 @@ const supa = {
 async function fetchEdgarHoldings(ticker,fundName){
   try{
     const query=encodeURIComponent(`"${ticker}" OR "${fundName.split(' ').slice(0,3).join(' ')}"`);
-    const res=await fetch(`/api/efts/LATEST/search-index?q=${query}&forms=NPORT-P`,{signal:AbortSignal.timeout(12000)});
+    const res=await fetch(`/api/efts/LATEST/search-index?q=${query}&forms=NPORT-P`,{signal:fetchSignal(12000)});
     if(!res.ok)return null;
     const data=await res.json();
     const hits=data?.hits?.hits;
@@ -299,7 +299,7 @@ async function fetchEdgarHoldings(ticker,fundName){
     if(!rawCik)return null;
     const cik=rawCik.replace(/^0+/,'');
     const padded=rawCik.padStart(10,'0');
-    const subRes=await fetch(`/api/edgar/submissions/CIK${padded}.json`,{signal:AbortSignal.timeout(12000)});
+    const subRes=await fetch(`/api/edgar/submissions/CIK${padded}.json`,{signal:fetchSignal(12000)});
     if(!subRes.ok){const adsh=src.adsh;if(!adsh)return null;return await fetchNportByAccession(cik,adsh,ticker)}
     const subData=await subRes.json();
     const filings=subData.filings?.recent;
@@ -315,13 +315,13 @@ async function fetchNportByAccession(cik,accNo,ticker){
   try{
     const accNoDashes=accNo.replace(/-/g,'');
     const indexUrl=`/api/www4sec/Archives/edgar/data/${cik}/${accNoDashes}/`;
-    const idxRes=await fetch(indexUrl,{signal:AbortSignal.timeout(10000)});
+    const idxRes=await fetch(indexUrl,{signal:fetchSignal(10000)});
     if(!idxRes.ok)return null;
     const idxHtml=await idxRes.text();
     const xmlMatch=idxHtml.match(/href="([^"]+\.xml)"/i);
     if(!xmlMatch)return null;
     const xmlFile=xmlMatch[1].startsWith('/')?`/api/www4sec${xmlMatch[1]}`:`${indexUrl}${xmlMatch[1]}`;
-    const xmlRes=await fetch(xmlFile,{signal:AbortSignal.timeout(20000)});
+    const xmlRes=await fetch(xmlFile,{signal:fetchSignal(20000)});
     if(!xmlRes.ok)return null;
     return parseNportXML(await xmlRes.text(),ticker);
   }catch(e){return null}
@@ -352,7 +352,7 @@ async function fetchTiingo(ticker){
   const start=new Date();start.setFullYear(start.getFullYear()-1);
   const fmt=d=>d.toISOString().split('T')[0];
   try{
-    const r=await fetch(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`,{signal:AbortSignal.timeout(10000)});
+    const r=await fetch(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`,{signal:fetchSignal(10000)});
     if(!r.ok)return null;
     const data=await r.json();
     if(!Array.isArray(data)||data.length<20)return null;
@@ -391,7 +391,7 @@ async function fetchSectorMomentum(){
 // ═══════════════════════════════════════════════════════════════
 async function fetchFREDSeries(seriesId){
   try{
-    const r=await fetch(`/api/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5`,{signal:AbortSignal.timeout(8000)});
+    const r=await fetch(`/api/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5`,{signal:fetchSignal(8000)});
     if(!r.ok)return null;
     const data=await r.json();
     const obs=data?.observations?.filter(o=>o.value!=='.');
@@ -402,7 +402,7 @@ async function fetchFREDSeries(seriesId){
 async function fetchGDELT(query,maxRecords=8){
   try{
     const q=encodeURIComponent(query);
-    const r=await fetch(`/api/gdelt?query=${q}&mode=artlist&maxrecords=${maxRecords}&format=json`,{signal:AbortSignal.timeout(10000)});
+    const r=await fetch(`/api/gdelt?query=${q}&mode=artlist&maxrecords=${maxRecords}&format=json`,{signal:fetchSignal(10000)});
     if(!r.ok)return[];
     const data=await r.json();
     return(data?.articles||[]).map(a=>a.title||a.url||'').filter(Boolean).slice(0,maxRecords);
@@ -545,7 +545,7 @@ async function mapTickerToSector(ticker, companyName){
   
   // Try FMP API
   try{
-    const r=await fetch(`/api/fmp/api/v3/profile/${ticker}`,{signal:AbortSignal.timeout(6000)});
+    const r=await fetch(`/api/fmp/api/v3/profile/${ticker}`,{signal:fetchSignal(6000)});
     if(r.ok){
       const data=await r.json();
       const sector=data?.[0]?.sector||null;
@@ -966,6 +966,9 @@ async function checkAndUpdateClosedPredictions(){
 // MAIN PIPELINE — 6 steps
 // ═══════════════════════════════════════════════════════════════
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// AbortSignal.timeout() can't be cloned in some browser/proxy environments.
+// Use this helper instead — creates a controller, fires abort after ms.
+function fetchSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}
 
 async function runPipeline(){
   if(APP.loading)return;

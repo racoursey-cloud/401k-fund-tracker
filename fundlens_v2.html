@@ -260,7 +260,7 @@ const supa = {
     const now=new Date().toISOString();
     const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,indexed_at:now}));
     // resolution=ignore-duplicates: skip conflicts so partial saves still work
-    return this.h.post('holdings_cache',rows,'resolution=ignore-duplicates,return=minimal');
+    return fetch('/api/supabase/holdings_cache?on_conflict=fund_ticker',{method:'POST',headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)}).then(r=>{if(!r.ok)r.text().then(t=>console.warn('holdings_cache upsert:',r.status,t.slice(0,100)));return null;}).catch(()=>null);
   },
   // Sector mapping cache
   async getSectorMapping(ticker){
@@ -670,7 +670,7 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
       const res=await fetch('/api/claude',{
         method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
         body:JSON.stringify({
-          model:'claude-haiku-4-5-20251001',max_tokens:1400,
+          model:'claude-haiku-4-5-20251001',max_tokens:2000,
           ...(worldData.fredAvailable<3?{tools:[{type:'web_search_20250305',name:'web_search'}]}:{}),
           messages:[{role:'user',content:prompt}]
         })
@@ -691,7 +691,7 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
     console.warn('Sector scoring: retrying without web_search as final fallback');
     const res=await fetch('/api/claude',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1400,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:prompt}]})
     });
     if(res.ok){
       const data=await res.json();

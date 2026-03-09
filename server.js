@@ -315,7 +315,7 @@ const server = http.createServer(async (req, res) => {
   // Example: GET /api/fred/series/observations?series_id=DFF&sort_order=desc&limit=5
   if (pathname.startsWith('/api/fred/')) {
     if (!FRED_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'FRED_KEY not set — register free at fredaccount.stlouisfed.org' })); return; }
-    const fredPath = pathname.replace('/api/fred', '') + '?' +
+    const fredPath = pathname.replace('/api/fred', '/fred') + '?' +
       new URLSearchParams({ ...parsed.query, api_key: FRED_KEY, file_type: 'json' }).toString();
     proxyRequest(res, { hostname: 'api.stlouisfed.org', path: fredPath, method: 'GET', headers: { 'Accept': 'application/json' } }, null);
     return;

@@ -137,7 +137,7 @@ async function liveHealthCheck() {
   // FMP — live test call (profile lookup for SPY — lightweight, always available)
   await new Promise(resolve => {
     if (!FMP_KEY) { results.fmp = { ok: false, note: 'FMP_KEY not set — register free at financialmodelingprep.com (250 req/day)' }; return resolve(); }
-    const fmpPath = '/api/v3/profile/SPY?apikey=' + FMP_KEY;
+    const fmpPath = '/stable/profile?symbol=SPY&apikey=' + FMP_KEY;
     const req = https.request({
       hostname: 'financialmodelingprep.com', path: fmpPath, method: 'GET',
       headers: { 'Accept': 'application/json' },

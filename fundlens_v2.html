@@ -7,109 +7,71 @@
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:         #F7F5F0;
-  --surface:    #FFFFFF;
-  --surface2:   #F0EDE8;
-  --border:     #E2DDD8;
-  --border2:    #D0CAC3;
-  --text:       #111418;
-  --text2:      #5C6370;
-  --text3:      #9AA0AD;
-  --green:      #059669;
-  --green-bg:   #ECFDF5;
-  --green-bd:   #A7F3D0;
-  --amber:      #B45309;
-  --amber-bg:   #FFFBEB;
-  --amber-bd:   #FDE68A;
-  --blue:       #1D4ED8;
-  --blue-bg:    #EFF6FF;
-  --blue-bd:    #BFDBFE;
-  --red:        #DC2626;
-  --red-bg:     #FEF2F2;
-  --red-bd:     #FCA5A5;
-  --accent:     #1D4ED8;
-  --radius:     10px;
-  --shadow:     0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
-  --shadow-md:  0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
+  --bg:#F7F5F0;--surface:#FFFFFF;--surface2:#F0EDE8;--border:#E2DDD8;--border2:#D0CAC3;
+  --text:#111418;--text2:#5C6370;--text3:#9AA0AD;
+  --green:#059669;--green-bg:#ECFDF5;--green-bd:#A7F3D0;
+  --amber:#B45309;--amber-bg:#FFFBEB;--amber-bd:#FDE68A;
+  --blue:#1D4ED8;--blue-bg:#EFF6FF;--blue-bd:#BFDBFE;
+  --red:#DC2626;--red-bg:#FEF2F2;--red-bd:#FCA5A5;
+  --purple:#7C3AED;--purple-bg:#F5F3FF;--purple-bd:#C4B5FD;
+  --accent:#1D4ED8;--radius:10px;
+  --shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 12px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.05);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{font-size:16px}
-body{
-  font-family:'Manrope',sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  min-height:100vh;
-  -webkit-font-smoothing:antialiased;
-}
-/* Scrollbar */
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
-/* Buttons */
-.btn{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:9px 18px;border-radius:8px;border:none;cursor:pointer;
-  font-family:'Manrope',sans-serif;font-weight:600;font-size:13px;
-  transition:all 0.15s;white-space:nowrap;
-}
-.btn-primary{background:var(--text);color:#fff;}
-.btn-primary:hover{background:#333;}
-.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
-.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
-.btn-ghost:hover{background:var(--surface2);color:var(--text);}
-.btn-green{background:var(--green);color:#fff;}
-.btn-green:hover{background:#047857;}
-.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red-bd);}
-.btn-danger:hover{background:var(--red-bg);}
-/* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;font-size:13px;transition:all 0.15s;white-space:nowrap}
+.btn-primary{background:var(--text);color:#fff}.btn-primary:hover{background:#333}.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--surface2);color:var(--text)}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#047857}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red-bd)}.btn-danger:hover{background:var(--red-bg)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
 .card-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
 .card-body{padding:22px}
-/* Inputs */
-input[type="text"],input[type="number"],textarea,select{
-  font-family:'Manrope',sans-serif;font-size:13px;color:var(--text);
-  background:var(--surface);border:1px solid var(--border);border-radius:7px;
-  padding:9px 12px;outline:none;transition:border-color 0.15s;width:100%;
-}
-input:focus,textarea:focus,select:focus{border-color:var(--accent);}
-/* Tabs */
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 24px;}
-.tab{
-  padding:11px 16px;font-size:12px;font-weight:600;letter-spacing:0.3px;
-  color:var(--text3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;
-  font-family:'Manrope',sans-serif;transition:color 0.15s;
-}
-.tab:hover{color:var(--text2);}
-.tab.on{color:var(--text);border-bottom-color:var(--text);}
-/* Tier badges */
+input[type="text"],input[type="number"],textarea,select{font-family:'Manrope',sans-serif;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:9px 12px;outline:none;transition:border-color 0.15s;width:100%}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto}
+.tab{padding:11px 16px;font-size:12px;font-weight:600;letter-spacing:0.3px;color:var(--text3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;font-family:'Manrope',sans-serif;transition:color 0.15s;white-space:nowrap}
+.tab:hover{color:var(--text2)}.tab.on{color:var(--text);border-bottom-color:var(--text)}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace}
 .t1{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
 .t2{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd)}
 .t3{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
 .t4{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
-/* Score number */
+.t5{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-bd)}
 .score-xl{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:700;line-height:1}
 .score-lg{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700}
 .score-md{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
-.score-sm{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:400}
-/* ROI color */
-.pos{color:var(--green)}
-.neg{color:var(--red)}
-/* Spinner */
+.pos{color:var(--green)}.neg{color:var(--red)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block}
-/* Progress bar */
 .pbar-wrap{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
 .pbar-fill{height:100%;border-radius:3px;transition:width 0.5s ease}
-/* Label */
 .label{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);text-transform:uppercase}
-/* Source badge */
-.src-live{background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
-.src-seed{background:#F1F5F9;color:#64748B;border:1px solid #CBD5E1;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
-.src-partial{background:#FFFBEB;color:#B45309;border:1px solid #FDE68A;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
-/* Alert banner */
-.alert-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-/* Wizard */
+.note{font-size:11px;color:var(--text3);line-height:1.5}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:680px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.data-table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table td{padding:10px 12px;border-bottom:1px solid var(--bg);vertical-align:middle}
+.data-table tr:hover td{background:var(--surface2)}
+.data-table tr.selected td{background:var(--blue-bg)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn 0.25s ease both}
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+.app-logo{font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;letter-spacing:-0.3px}
+.app-logo span{color:var(--green)}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.metric-label{font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
+.metric-value{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;line-height:1}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:4px}
+.pipeline-step{display:flex;gap:10px;padding:10px 0;align-items:flex-start}
+.pipeline-dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:2px;font-size:10px;font-weight:700}
+.pipeline-dot.done{background:var(--green);border-color:var(--green);color:#fff}
+.pipeline-dot.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.pipeline-dot.pending{background:var(--surface);border-color:var(--border)}
 .wizard-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--bg)}
 .wizard-card{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-md);overflow:hidden}
 .wizard-header{padding:32px 36px 24px;border-bottom:1px solid var(--border);background:var(--bg)}
@@ -118,46 +80,27 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent);}
 .step-dots{display:flex;gap:6px}
 .step-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background 0.2s}
 .step-dot.on{background:var(--text)}
-/* Fund chip */
 .fund-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600}
 .fund-chip button{background:none;border:none;cursor:pointer;color:var(--text3);padding:0;font-size:14px;line-height:1;transition:color 0.1s}
 .fund-chip button:hover{color:var(--red)}
-/* Holdings row */
-.holding-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
-.holding-row:last-child{border-bottom:none}
-/* Tooltip-like note */
-.note{font-size:11px;color:var(--text3);line-height:1.5}
-/* Grid utilities */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-@media(max-width:680px){.grid-2,.grid-3{grid-template-columns:1fr}}
-/* Table */
-.data-table{width:100%;border-collapse:collapse;font-size:12px}
-.data-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
-.data-table td{padding:10px 12px;border-bottom:1px solid var(--bg);vertical-align:middle}
-.data-table tr:hover td{background:var(--surface2)}
-.data-table tr.selected td{background:var(--blue-bg)}
-/* Smooth fade-in */
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.fade-in{animation:fadeIn 0.25s ease both}
-/* Setup radar SVG wrapper */
+.alert-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Sector traffic light */
+.sector-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.sector-win{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+.sector-neu{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.sector-los{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
+/* Thesis prose */
+.thesis-prose{font-size:13px;line-height:1.8;color:var(--text2)}
+.thesis-prose p{margin-bottom:14px}
+.thesis-prose strong{color:var(--text)}
+/* IC tracker */
+.ic-good{color:var(--green)}.ic-ok{color:var(--amber)}.ic-bad{color:var(--red)}
+/* Breakaway glow */
+.breakaway-row td{background:linear-gradient(90deg,var(--green-bg) 0%,transparent 100%) !important}
+.src-live{background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.src-seed{background:#F1F5F9;color:#64748B;border:1px solid #CBD5E1;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.src-partial{background:#FFFBEB;color:#B45309;border:1px solid #FDE68A;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .radar-wrap{display:flex;justify-content:center}
-/* Header */
-.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
-.app-logo{font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;letter-spacing:-0.3px}
-.app-logo span{color:var(--green)}
-/* Metric card */
-.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
-.metric-label{font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
-.metric-value{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;line-height:1}
-.metric-sub{font-size:11px;color:var(--text3);margin-top:4px}
-/* Step progress */
-.pipeline-step{display:flex;gap:10px;padding:10px 0;align-items:flex-start}
-.pipeline-dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:2px}
-.pipeline-dot.done{background:var(--green);border-color:var(--green);color:#fff}
-.pipeline-dot.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.pipeline-dot.pending{background:var(--surface);border-color:var(--border)}
-/* Donut */
 .donut-wrap{display:flex;justify-content:center;align-items:flex-start;gap:20px;flex-wrap:wrap}
 </style>
 </head>
@@ -167,13 +110,6 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent);}
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
-const TIINGO_KEY    = ''; // handled server-side
-const ANTHROPIC_KEY = ''; // handled server-side
-const SUPA_URL      = ''; // handled server-side
-const SUPA_KEY      = ''; // handled server-side
-const CORS          = ''; // CORS handled server-side
-
-// Default fund universe (Robert's 22)
 const DEFAULT_FUNDS = [
   {ticker:'PRPFX',name:'Permanent Portfolio I'},
   {ticker:'WFPRX',name:'Allspring Special Mid Cap Value'},
@@ -199,10 +135,36 @@ const DEFAULT_FUNDS = [
   {ticker:'FSPGX',name:'Fidelity Large Cap Growth Index'},
 ];
 
-const DEFAULT_WEIGHTS = {macro:20, momentum:30, manager:15, riskAdj:10, returnScore:25};
+// 11 GICS sectors with SPDR ETF proxies for momentum calculation
+const GICS_SECTORS = {
+  'Technology':             {etf:'XLK', color:'#1D4ED8'},
+  'Financials':             {etf:'XLF', color:'#059669'},
+  'Healthcare':             {etf:'XLV', color:'#DC2626'},
+  'Consumer Discretionary': {etf:'XLY', color:'#D97706'},
+  'Consumer Staples':       {etf:'XLP', color:'#7C3AED'},
+  'Energy':                 {etf:'XLE', color:'#B45309'},
+  'Industrials':            {etf:'XLI', color:'#0891B2'},
+  'Materials':              {etf:'XLB', color:'#65A30D'},
+  'Utilities':              {etf:'XLU', color:'#6B7280'},
+  'Real Estate':            {etf:'XLRE',color:'#EC4899'},
+  'Communication Services': {etf:'XLC', color:'#8B5CF6'},
+};
 
-// Money market funds file N-MFP with the SEC, not N-PORT-P — EDGAR will never
-// return portfolio holdings for these via the NPORT-P search path.
+// Key FRED series for macro intelligence
+const FRED_SERIES = {
+  DFF:           'Fed Funds Rate',
+  T10Y2Y:        '10Y-2Y Yield Curve',
+  CPIAUCSL:      'CPI YoY',
+  UNRATE:        'Unemployment Rate',
+  BAMLH0A0HYM2:  'HY Credit Spread',
+  GOLDAMGBD228NLBM: 'Gold Price',
+  WTISPLC:       'WTI Crude',
+  NAPM:          'Manufacturing PMI',
+  NMFCI:         'Services PMI',
+  T10YIE:        'Breakeven Inflation 10Y',
+  DTWEXBGS:      'USD Broad Index',
+};
+
 const MONEY_MARKET_FUNDS = new Set(['FDRXX','ADAXX']);
 
 const ALERTS = {
@@ -217,960 +179,1318 @@ const ALERTS = {
   WEGRX:'Fee waiver expires 8/31/2026',HRAUX:'12% cap gain distribution early 2026',
 };
 
-// Seed scores for when live data is unavailable
+// Seed scores — fallback when live pipeline fails
 const SEED = {
-  PRPFX:{macro:9.5,manager:8.5,momentum:10.0,riskAdj:9.0,roi:6.5},
-  WFPRX:{macro:8.5,manager:7.5,momentum:9.3,riskAdj:7.0,roi:2.0},
-  VFWAX:{macro:8.5,manager:7.0,momentum:5.4,riskAdj:7.5,roi:5.0},
-  QFVRX:{macro:8.5,manager:8.5,momentum:7.7,riskAdj:7.0,roi:5.5},
-  MADFX:{macro:5.5,manager:7.0,momentum:5.5,riskAdj:7.5,roi:2.5},
-  VADFX:{macro:4.5,manager:6.0,momentum:3.3,riskAdj:6.5,roi:1.5},
-  RNWGX:{macro:7.0,manager:7.5,momentum:5.7,riskAdj:5.5,roi:5.0},
-  OIBIX:{macro:7.5,manager:7.0,momentum:2.1,riskAdj:6.5,roi:3.5},
-  RTRIX:{macro:4.0,manager:5.5,momentum:6.5,riskAdj:5.0,roi:1.5},
-  DRRYX:{macro:3.5,manager:3.5,momentum:1.3,riskAdj:6.5,roi:1.0},
-  VWIGX:{macro:7.0,manager:8.0,momentum:3.0,riskAdj:5.0,roi:4.5},
-  TGEPX:{macro:6.0,manager:7.5,momentum:1.8,riskAdj:5.5,roi:2.5},
-  BPLBX:{macro:7.0,manager:5.5,momentum:1.1,riskAdj:7.0,roi:2.0},
-  CFSTX:{macro:4.0,manager:5.0,momentum:0.5,riskAdj:9.0,roi:0.8},
-  MWTSX:{macro:4.5,manager:4.5,momentum:1.1,riskAdj:7.5,roi:1.2},
-  FXAIX:{macro:3.0,manager:7.0,momentum:0.7,riskAdj:6.0,roi:-1.0},
-  FDRXX:{macro:1.5,manager:6.0,momentum:0.6,riskAdj:8.8,roi:0.85},
-  ADAXX:{macro:1.5,manager:5.0,momentum:0.6,riskAdj:8.5,roi:0.87},
-  WEGRX:{macro:1.5,manager:4.5,momentum:3.3,riskAdj:3.5,roi:-3.5},
-  BGHIX:{macro:2.0,manager:3.0,momentum:0.5,riskAdj:4.5,roi:-1.5},
-  HRAUX:{macro:2.0,manager:3.5,momentum:0.0,riskAdj:4.5,roi:-3.0},
-  FSPGX:{macro:1.0,manager:6.5,momentum:0.0,riskAdj:4.0,roi:-4.0},
+  PRPFX:{composite:7.8,roi:4.2,tier:'STRONG'},WFPRX:{composite:6.1,roi:1.8,tier:'NEUTRAL'},
+  VFWAX:{composite:7.2,roi:4.5,tier:'STRONG'},QFVRX:{composite:6.4,roi:3.1,tier:'NEUTRAL'},
+  MADFX:{composite:5.5,roi:1.5,tier:'NEUTRAL'},VADFX:{composite:4.8,roi:0.8,tier:'NEUTRAL'},
+  RNWGX:{composite:6.8,roi:3.8,tier:'NEUTRAL'},OIBIX:{composite:5.2,roi:1.2,tier:'NEUTRAL'},
+  RTRIX:{composite:4.1,roi:0.5,tier:'NEUTRAL'},DRRYX:{composite:3.8,roi:-0.5,tier:'NEUTRAL'},
+  VWIGX:{composite:6.5,roi:3.2,tier:'NEUTRAL'},TGEPX:{composite:5.8,roi:2.0,tier:'NEUTRAL'},
+  BPLBX:{composite:5.0,roi:1.0,tier:'NEUTRAL'},CFSTX:{composite:4.5,roi:0.6,tier:'NEUTRAL'},
+  MWTSX:{composite:4.2,roi:0.8,tier:'NEUTRAL'},FXAIX:{composite:4.5,roi:-0.5,tier:'NEUTRAL'},
+  FDRXX:{composite:3.5,roi:0.85,tier:'NEUTRAL'},ADAXX:{composite:3.4,roi:0.87,tier:'NEUTRAL'},
+  WEGRX:{composite:3.2,roi:-2.5,tier:'NEUTRAL'},BGHIX:{composite:3.5,roi:-1.0,tier:'NEUTRAL'},
+  HRAUX:{composite:3.0,roi:-2.0,tier:'NEUTRAL'},FSPGX:{composite:3.8,roi:-1.5,tier:'NEUTRAL'},
 };
+
+const DEFAULT_WEIGHTS = {worldThesis:40, momentum:20, riskAdj:15, managerQuality:10, returnScore:15};
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
 let APP = {
-  // Wizard
-  wizard: true, wizardStep: 1,
-  // Profile
-  profiles: [], activeProfile: null,
-  // Analysis
-  funds: [],      // scored funds
-  source: 'seed', // seed | partial | live
-  loading: false,
-  pipeline: {step:0, total:4, detail:'', stepName:''},
-  lastRun: null,
-  macroText: null,
+  wizard:true, wizardStep:1,
+  profiles:[], activeProfile:null,
+  funds:[],
+  source:'seed', loading:false,
+  pipeline:{step:0, total:6, detail:'', stepName:''},
+  lastRun:null,
+  // World intelligence
+  worldData:null,       // FRED + GDELT raw data
+  sectorScores:null,    // {Technology:{score,reason}, ...}
+  investmentThesis:null, // Full thesis object from Claude
+  dominantTheme:null,
+  // Prediction tracking
+  currentCycleId:null,
   // UI
-  tab: 'rank', selectedFund: null,
-  showHoldingsFor: null,
-  // Holdings cache (in-memory, also persisted in Supabase)
-  holdingsCache: {},  // ticker → { holdings: [...], fetchedAt: ISO }
+  tab:'rank', selectedFund:null,
+  showHoldingsFor:null,
+  holdingsCache:{},
+  sectorMappingCache:{}, // ticker → sector (in-memory, also Supabase)
+  predictionHistory:[], // loaded from Supabase on init
 };
 
 // ═══════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════
 const LS = {
-  get: k => { try { return JSON.parse(localStorage.getItem('fl2_'+k)); } catch(e) { return null; } },
-  set: (k,v) => { try { localStorage.setItem('fl2_'+k, JSON.stringify(v)); } catch(e) {} },
-  del: k => localStorage.removeItem('fl2_'+k),
+  get:k=>{try{return JSON.parse(localStorage.getItem('fl3_'+k))}catch(e){return null}},
+  set:(k,v)=>{try{localStorage.setItem('fl3_'+k,JSON.stringify(v))}catch(e){}},
+  del:k=>localStorage.removeItem('fl3_'+k),
 };
-
-function saveApiKeys() {
-  const a = document.getElementById('keyAnthropic')?.value || '';
-  const t = document.getElementById('keyTiingo')?.value || '';
-  const u = document.getElementById('keySupaUrl')?.value || '';
-  const k = document.getElementById('keySupaKey')?.value || '';
-  if(a) localStorage.setItem('fl2_anthropic_key', a);
-  if(t) localStorage.setItem('fl2_tiingo_key', t);
-  if(u) localStorage.setItem('fl2_supa_url', u);
-  if(k) localStorage.setItem('fl2_supa_key', k);
-}
-function saveProfiles() { LS.set('profiles', APP.profiles); }
-function loadProfiles() { return LS.get('profiles') || []; }
-
-function activeProfile() { return APP.profiles.find(p=>p.id===APP.activeProfile) || null; }
-function getFunds() { return activeProfile()?.funds || DEFAULT_FUNDS; }
-function getWeights() { return activeProfile()?.weights || DEFAULT_WEIGHTS; }
+function saveProfiles(){LS.set('profiles',APP.profiles)}
+function loadProfiles(){return LS.get('profiles')||[]}
+function activeProfile(){return APP.profiles.find(p=>p.id===APP.activeProfile)||null}
+function getFunds(){return activeProfile()?.funds||DEFAULT_FUNDS}
+function getWeights(){return activeProfile()?.weights||DEFAULT_WEIGHTS}
 
 // ═══════════════════════════════════════════════════════════════
-// SUPABASE REST
+// SUPABASE CLIENT
 // ═══════════════════════════════════════════════════════════════
 const supa = {
-  headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+SUPA_KEY },
-  async get(table, params='') {
-    try {
-      const r = await fetch(`/api/supabase/${table}${params}`, {headers:this.headers});
-      if(!r.ok) { console.error(`Supabase GET ${table} failed:`, r.status, await r.text()); return null; }
-      return r.json();
-    } catch(e) { console.error(`Supabase GET ${table} error:`, e.message); return null; }
+  h:{get(table,params=''){return fetch(`/api/supabase/${table}${params}`).then(r=>r.ok?r.json():null).catch(()=>null)},
+     post(table,body,prefer='return=representation'){return fetch(`/api/supabase/${table}`,{method:'POST',headers:{'Content-Type':'application/json','Prefer':prefer},body:JSON.stringify(body)}).then(r=>r.ok?r.json():null).catch(()=>null)},
+     del(table,params=''){return fetch(`/api/supabase/${table}${params}`,{method:'DELETE',headers:{'Prefer':'return=minimal'}}).then(r=>r.ok).catch(()=>false)}
   },
-  async post(table, body) {
-    try {
-      const r = await fetch(`/api/supabase/${table}`, {
-        method:'POST', headers:{...this.headers,'Prefer':'return=representation'}, body:JSON.stringify(body)
-      });
-      if(!r.ok) { console.error(`Supabase POST ${table} failed:`, r.status, await r.text()); return null; }
-      return r.json();
-    } catch(e) { console.error(`Supabase POST ${table} error:`, e.message); return null; }
+  async getHoldings(ticker){
+    const rows=await this.h.get('holdings_cache',`?fund_ticker=eq.${ticker}&select=*&order=weight.desc`);
+    if(!rows?.length)return null;
+    return{holdings:rows.map(r=>({name:r.holding_name||'',ticker:r.holding_ticker||'',pctVal:r.weight||0,valUSD:r.market_value||0,assetCat:r.asset_type||'',sector:r.sector||'',cusip:''})),fetchedAt:rows[0].indexed_at};
   },
-  async getHoldings(ticker) {
-    // Schema is row-per-holding: fund_ticker, holding_name, holding_ticker, weight, market_value, shares, asset_type, sector, indexed_at
-    const rows = await this.get('holdings_cache', `?fund_ticker=eq.${ticker}&select=*&order=weight.desc`);
-    if(!rows?.length) return null;
-    const holdings = rows.map(r => ({
-      name:     r.holding_name || '',
-      ticker:   r.holding_ticker || '',
-      pctVal:   r.weight || 0,
-      valUSD:   r.market_value || 0,
-      assetCat: r.asset_type || '',
-      sector:   r.sector || '',
-      cusip:    '', // not stored in DB, only in memory
-    }));
-    return { holdings, fetchedAt: rows[0].indexed_at };
+  async saveHoldings(ticker,holdings,fundName){
+    await this.h.del('holdings_cache',`?fund_ticker=eq.${ticker}`);
+    const now=new Date().toISOString();
+    const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,indexed_at:now}));
+    return this.h.post('holdings_cache',rows);
   },
-  async saveHoldings(ticker, holdings, fundName) {
-    try {
-      // Delete old rows for this fund
-      const delRes = await fetch(`/api/supabase/holdings_cache?fund_ticker=eq.${ticker}`, {method:'DELETE', headers:this.headers});
-      if(!delRes.ok) console.error(`Supabase DELETE holdings_cache failed:`, delRes.status, await delRes.text());
-      // Insert one row per holding (batch)
-      const now = new Date().toISOString();
-      const rows = holdings.slice(0, 200).map(h => ({
-        fund_ticker:    ticker,
-        holding_name:   h.name || '',
-        holding_ticker: h.ticker || null,
-        weight:         h.pctVal || 0,
-        market_value:   h.valUSD || null,
-        shares:         h.shares || null,
-        asset_type:     h.assetCat || null,
-        sector:         h.sector || null,
-        indexed_at:     now,
-      }));
-      return this.post('holdings_cache', rows);
-    } catch(e) { return null; }
+  // Sector mapping cache
+  async getSectorMapping(ticker){
+    const rows=await this.h.get('sector_mappings',`?ticker=eq.${ticker}&select=*`);
+    return rows?.[0]||null;
   },
-  async saveRun(runData) {
-    return this.post('runs', runData);
+  async saveSectorMapping(ticker,sector,industry){
+    await this.h.del('sector_mappings',`?ticker=eq.${ticker}`);
+    return this.h.post('sector_mappings',[{ticker,sector,industry,cached_at:new Date().toISOString()}],'return=minimal');
   },
-  async getRuns(userId, limit=20) {
-    return this.get('runs', `?user_id=eq.${userId}&select=*&order=created_at.desc&limit=${limit}`);
+  // Prediction cycles
+  async savePredictionCycle(data){
+    return this.h.post('prediction_cycles',[data]);
   },
+  async saveFundPredictions(predictions){
+    return this.h.post('fund_predictions',predictions,'return=minimal');
+  },
+  async getPredictionCycles(userId,limit=12){
+    return this.h.get('prediction_cycles',`?user_id=eq.${userId}&order=created_at.desc&limit=${limit}`);
+  },
+  async getFundPredictions(cycleId){
+    return this.h.get('fund_predictions',`?cycle_id=eq.${cycleId}&order=predicted_composite.desc`);
+  },
+  async updateFundPrediction(id,updates){
+    return fetch(`/api/supabase/fund_predictions?id=eq.${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(updates)}).then(r=>r.ok).catch(()=>false);
+  },
+  async saveRun(runData){return this.h.post('runs',[runData],'return=minimal')},
 };
 
 // ═══════════════════════════════════════════════════════════════
-// EDGAR HOLDINGS FETCH
+// EDGAR HOLDINGS FETCH (unchanged from v2)
 // ═══════════════════════════════════════════════════════════════
-async function fetchEdgarHoldings(ticker, fundName) {
-  try {
-    // Step 1: Find CIK via EDGAR full-text search (adsh + ciks[] are in _source directly)
-    const query = encodeURIComponent(`"${ticker}" OR "${fundName.split(' ').slice(0,3).join(' ')}"`);
-    const searchUrl = `/api/efts/LATEST/search-index?q=${query}&forms=NPORT-P`;
-    const res = await fetch(searchUrl, {signal:AbortSignal.timeout(12000)});
-    if(!res.ok) return null;
-    const data = await res.json();
-    const hits = data?.hits?.hits;
-    if(!hits?.length) return null;
-
-    // CIK and accession number are both directly in _source — no second roundtrip
-    const src = hits[0]._source;
-    const rawCik = src.ciks?.[0];
-    if(!rawCik) return null;
-    const cik = rawCik.replace(/^0+/, ''); // strip leading zeros for URL
-    const padded = rawCik.padStart(10, '0'); // 10-digit padded for submissions API
-
-    // Step 2: Use submissions API to find the MOST RECENT NPORT-P filing
-    // (full-text search index can return stale results)
-    const subUrl = `/api/edgar/submissions/CIK${padded}.json`;
-    const subRes = await fetch(subUrl, {signal:AbortSignal.timeout(12000)});
-    if(!subRes.ok) {
-      // Fallback: use accession number from search result directly
-      const adsh = src.adsh;
-      if(!adsh) return null;
-      return await fetchNportByAccession(cik, adsh, ticker);
-    }
-    const subData = await subRes.json();
-    const filings = subData.filings?.recent;
-    if(!filings?.form) return null;
-
-    // Find index of most recent NPORT-P
-    let latestIdx = -1;
-    filings.form.forEach((form, i) => {
-      if(form === 'NPORT-P') {
-        if(latestIdx === -1 || filings.filingDate[i] > filings.filingDate[latestIdx]) latestIdx = i;
-      }
+async function fetchEdgarHoldings(ticker,fundName){
+  try{
+    const query=encodeURIComponent(`"${ticker}" OR "${fundName.split(' ').slice(0,3).join(' ')}"`);
+    const res=await fetch(`/api/efts/LATEST/search-index?q=${query}&forms=NPORT-P`,{signal:AbortSignal.timeout(12000)});
+    if(!res.ok)return null;
+    const data=await res.json();
+    const hits=data?.hits?.hits;
+    if(!hits?.length)return null;
+    const src=hits[0]._source;
+    const rawCik=src.ciks?.[0];
+    if(!rawCik)return null;
+    const cik=rawCik.replace(/^0+/,'');
+    const padded=rawCik.padStart(10,'0');
+    const subRes=await fetch(`/api/edgar/submissions/CIK${padded}.json`,{signal:AbortSignal.timeout(12000)});
+    if(!subRes.ok){const adsh=src.adsh;if(!adsh)return null;return await fetchNportByAccession(cik,adsh,ticker)}
+    const subData=await subRes.json();
+    const filings=subData.filings?.recent;
+    if(!filings?.form)return null;
+    let latestIdx=-1;
+    filings.form.forEach((form,i)=>{if(form==='NPORT-P'){if(latestIdx===-1||filings.filingDate[i]>filings.filingDate[latestIdx])latestIdx=i}});
+    if(latestIdx===-1)return null;
+    const accNo=filings.accessionNumber[latestIdx];
+    return await fetchNportByAccession(cik,accNo,ticker);
+  }catch(e){console.warn(`EDGAR search failed for ${ticker}:`,e.message);return null}
+}
+async function fetchNportByAccession(cik,accNo,ticker){
+  try{
+    const accNoDashes=accNo.replace(/-/g,'');
+    const indexUrl=`/api/www4sec/Archives/edgar/data/${cik}/${accNoDashes}/`;
+    const idxRes=await fetch(indexUrl,{signal:AbortSignal.timeout(10000)});
+    if(!idxRes.ok)return null;
+    const idxHtml=await idxRes.text();
+    const xmlMatch=idxHtml.match(/href="([^"]+\.xml)"/i);
+    if(!xmlMatch)return null;
+    const xmlFile=xmlMatch[1].startsWith('/')?`/api/www4sec${xmlMatch[1]}`:`${indexUrl}${xmlMatch[1]}`;
+    const xmlRes=await fetch(xmlFile,{signal:AbortSignal.timeout(20000)});
+    if(!xmlRes.ok)return null;
+    return parseNportXML(await xmlRes.text(),ticker);
+  }catch(e){return null}
+}
+function parseNportXML(xmlText){
+  try{
+    const doc=new DOMParser().parseFromString(xmlText,'application/xml');
+    const holdings=[];
+    doc.querySelectorAll('invstOrSec').forEach(el=>{
+      const get=tag=>el.querySelector(tag)?.textContent?.trim()||'';
+      const pctVal=parseFloat(get('pctVal'))||0;
+      if(pctVal<=0)return;
+      const tickerEl=el.querySelector('identifiers ticker value')||el.querySelector('ticker value');
+      holdings.push({name:get('name'),ticker:tickerEl?tickerEl.textContent.trim():'',cusip:get('cusip'),pctVal,valUSD:parseFloat(get('valUSD'))||0,assetCat:get('assetCat'),country:get('invCountry'),sector:''});
     });
-    if(latestIdx === -1) return null;
-
-    const accNo = filings.accessionNumber[latestIdx]; // "0001193125-24-123456"
-    console.log(`EDGAR: ${ticker} CIK=${cik} latest NPORT-P filed ${filings.filingDate[latestIdx]} accNo=${accNo}`);
-    return await fetchNportByAccession(cik, accNo, ticker);
-  } catch(e) {
-    console.warn(`EDGAR search failed for ${ticker}:`, e.message);
-    return null;
-  }
+    holdings.sort((a,b)=>b.pctVal-a.pctVal);
+    const rawTotal=holdings.reduce((s,h)=>s+h.pctVal,0);
+    if(rawTotal>110)holdings.forEach(h=>{h.pctVal=+(h.pctVal/rawTotal*100).toFixed(4)});
+    return holdings.length?holdings:null;
+  }catch(e){return null}
 }
 
-async function fetchNportByAccession(cik, accNo, ticker) {
-  try {
-    // Get filing index
-    const accNoDashes = accNo.replace(/-/g,'');
-    const indexUrl = `/api/www4sec/Archives/edgar/data/${cik}/${accNoDashes}/`;
-    const idxRes = await fetch(indexUrl, {signal:AbortSignal.timeout(10000)});
-    if(!idxRes.ok) return null;
-    const idxHtml = await idxRes.text();
-    // Find the primary XML file
-    const xmlMatch = idxHtml.match(/href="([^"]+\.xml)"/i);
-    if(!xmlMatch) return null;
-    const xmlFile = xmlMatch[1].startsWith('/') ? `/api/www4sec${xmlMatch[1]}` : `${indexUrl}${xmlMatch[1]}`;
-
-    // Fetch and parse XML
-    const xmlRes = await fetch(xmlFile, {signal:AbortSignal.timeout(20000)});
-    if(!xmlRes.ok) return null;
-    const xmlText = await xmlRes.text();
-    return parseNportXML(xmlText, ticker);
-  } catch(e) {
-    console.warn(`NPORT fetch failed for CIK ${cik}:`, e.message);
-    return null;
-  }
+// ═══════════════════════════════════════════════════════════════
+// TIINGO — NAV + Momentum + Sharpe
+// ═══════════════════════════════════════════════════════════════
+async function fetchTiingo(ticker){
+  const end=new Date();
+  const start=new Date();start.setFullYear(start.getFullYear()-1);
+  const fmt=d=>d.toISOString().split('T')[0];
+  try{
+    const r=await fetch(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`,{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)return null;
+    const data=await r.json();
+    if(!Array.isArray(data)||data.length<20)return null;
+    const prices=data.map(d=>d.adjClose||d.close).filter(Boolean);
+    const latest=prices[prices.length-1];
+    const p63=prices[Math.max(0,prices.length-64)];
+    const p21=prices[Math.max(0,prices.length-22)];
+    const mom63=((latest-p63)/p63)*100;
+    const mom21=((latest-p21)/p21)*100;
+    const momentum=Math.min(10,Math.max(0,5+mom63*0.35+mom21*0.15));
+    const rets=[];
+    for(let i=1;i<prices.length;i++)rets.push((prices[i]-prices[i-1])/prices[i-1]);
+    const mean=rets.reduce((s,r)=>s+r,0)/rets.length*252;
+    const variance=rets.reduce((s,r)=>s+Math.pow(r-mean/252,2),0)/rets.length;
+    const std=Math.sqrt(variance)*Math.sqrt(252);
+    const sharpe=std>0?(mean-0.043)/std:0;
+    const riskAdj=Math.min(10,Math.max(0,5+sharpe*1.8));
+    return{momentum:+momentum.toFixed(2),riskAdj:+riskAdj.toFixed(2),nav:latest,mom63:+mom63.toFixed(2),mom21:+mom21.toFixed(2)};
+  }catch(e){return null}
 }
 
-function parseNportXML(xmlText) {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlText, 'application/xml');
-    const holdings = [];
-    const invstOrSecs = doc.querySelectorAll('invstOrSec');
-    invstOrSecs.forEach(el => {
-      const get = tag => el.querySelector(tag)?.textContent?.trim() || '';
-      const pctVal = parseFloat(get('pctVal')) || 0;
-      if(pctVal <= 0) return; // skip zero-weight holdings
-      const tickerEl = el.querySelector('identifiers ticker value') || el.querySelector('ticker value');
-      holdings.push({
-        name:     get('name'),
-        ticker:   tickerEl ? tickerEl.textContent.trim() : '',
-        cusip:    get('cusip'),
-        pctVal,
-        valUSD:   parseFloat(get('valUSD')) || 0,
-        assetCat: get('assetCat'), // EC=equity, DBT=debt, RC=reg fund
-        country:  get('invCountry'),
+// Fetch sector ETF momentum for all 11 GICS sectors
+async function fetchSectorMomentum(){
+  const results={};
+  const etfs=Object.entries(GICS_SECTORS).map(([sector,d])=>({sector,etf:d.etf}));
+  for(const{sector,etf}of etfs){
+    const d=await fetchTiingo(etf);
+    results[sector]=d?{momentum:d.momentum,mom63:d.mom63,mom21:d.mom21,riskAdj:d.riskAdj}:{momentum:5,mom63:0,mom21:0,riskAdj:5};
+    await sleep(150);
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WORLD INTELLIGENCE ENGINE — FRED + GDELT
+// ═══════════════════════════════════════════════════════════════
+async function fetchFREDSeries(seriesId){
+  try{
+    const r=await fetch(`/api/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5`,{signal:AbortSignal.timeout(8000)});
+    if(!r.ok)return null;
+    const data=await r.json();
+    const obs=data?.observations?.filter(o=>o.value!=='.');
+    return obs?.length?parseFloat(obs[0].value):null;
+  }catch(e){return null}
+}
+
+async function fetchGDELT(query,maxRecords=8){
+  try{
+    const q=encodeURIComponent(query);
+    const r=await fetch(`/api/gdelt?query=${q}&mode=artlist&maxrecords=${maxRecords}&format=json`,{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)return[];
+    const data=await r.json();
+    return(data?.articles||[]).map(a=>a.title||a.url||'').filter(Boolean).slice(0,maxRecords);
+  }catch(e){return[]}
+}
+
+async function buildWorldIntelligence(setPipelineDetail){
+  setPipelineDetail('Fetching FRED economic data series...');
+  
+  // Fetch FRED series in parallel
+  const fredKeys=Object.keys(FRED_SERIES);
+  const fredValues=await Promise.allSettled(fredKeys.map(k=>fetchFREDSeries(k)));
+  const fredData={};
+  fredKeys.forEach((k,i)=>{fredData[k]=fredValues[i].status==='fulfilled'?fredValues[i].value:null});
+  
+  const fredAvailable=Object.values(fredData).filter(v=>v!==null).length;
+  console.log(`FRED: ${fredAvailable}/${fredKeys.length} series fetched`);
+  
+  // Fetch GDELT geopolitical and market news
+  setPipelineDetail('Fetching GDELT geopolitical intelligence...');
+  const [geoNews, tradeNews, commodityNews, sectorNews] = await Promise.allSettled([
+    fetchGDELT('geopolitical conflict trade shipping sanctions embargo 2026', 8),
+    fetchGDELT('US tariffs trade war China Europe economy 2026', 8),
+    fetchGDELT('Federal Reserve interest rates inflation dollar 2026', 8),
+    fetchGDELT('oil gold commodities energy materials sector performance 2026', 6),
+  ]);
+  
+  const allHeadlines = [
+    ...(geoNews.value||[]),
+    ...(tradeNews.value||[]),
+    ...(commodityNews.value||[]),
+    ...(sectorNews.value||[]),
+  ].filter((h,i,arr)=>arr.indexOf(h)===i).slice(0,28); // deduplicate, cap at 28
+  
+  return{fredData, headlines:allHeadlines, fredAvailable, headlineCount:allHeadlines.length};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SECTOR SCORING ENGINE — Claude synthesizes world data
+// ═══════════════════════════════════════════════════════════════
+async function scoreSectorsWithClaude(worldData, sectorMomentum){
+  const{fredData, headlines}=worldData;
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  // Format FRED data for prompt
+  const fredSummary=Object.entries(FRED_SERIES).map(([k,label])=>{
+    const v=fredData[k];
+    return v!==null?`${label}: ${v}`:null;
+  }).filter(Boolean).join('\n');
+
+  // Format sector momentum
+  const momentumSummary=Object.entries(sectorMomentum).map(([sector,d])=>
+    `${sector} (${GICS_SECTORS[sector]?.etf}): 63d momentum ${d.mom63>0?'+':''}${d.mom63}%, 21d ${d.mom21>0?'+':''}${d.mom21}%`
+  ).join('\n');
+
+  // Format headlines
+  const headlineSummary=headlines.slice(0,24).map((h,i)=>`${i+1}. ${h}`).join('\n');
+
+  const prompt=`You are a quantitative portfolio strategist. Today is ${today}. Based on the data below, score each GICS sector for 90-day forward performance and generate an investment thesis.
+
+=== FRED ECONOMIC DATA (latest readings) ===
+${fredSummary||'FRED data unavailable — use your knowledge of current conditions'}
+
+=== SECTOR ETF MOMENTUM (last 63 trading days) ===
+${momentumSummary}
+
+=== RECENT GEOPOLITICAL & MARKET HEADLINES ===
+${headlineSummary||'Use your current knowledge of global events'}
+
+=== INSTRUCTIONS ===
+1. For each of the 11 GICS sectors, assign a score 1–10 for expected 90-day performance. Consider: how do current macro conditions (rates, credit spreads, dollar strength, commodity prices) affect this sector? What geopolitical events create tailwinds or headwinds?
+2. Identify 2–3 dominant investment themes
+3. Write a 350-word investment thesis in plain English explaining the current environment and which types of companies should do well vs. poorly
+4. Identify key risk factors and potential positive catalysts
+5. Score each sector with specific reasoning tied to the current data
+
+Return ONLY valid JSON (no markdown, no explanation outside the JSON):
+{
+  "sectorScores": {
+    "Technology": {"score": X, "reason": "1-sentence reason tied to current data"},
+    "Financials": {"score": X, "reason": "..."},
+    "Healthcare": {"score": X, "reason": "..."},
+    "Consumer Discretionary": {"score": X, "reason": "..."},
+    "Consumer Staples": {"score": X, "reason": "..."},
+    "Energy": {"score": X, "reason": "..."},
+    "Industrials": {"score": X, "reason": "..."},
+    "Materials": {"score": X, "reason": "..."},
+    "Utilities": {"score": X, "reason": "..."},
+    "Real Estate": {"score": X, "reason": "..."},
+    "Communication Services": {"score": X, "reason": "..."}
+  },
+  "dominantTheme": "One-phrase name for the dominant investment theme, e.g. 'Sell America / Global Rotation'",
+  "thesis": "350-word investment thesis in plain English...",
+  "riskFactors": ["Risk 1", "Risk 2", "Risk 3"],
+  "catalysts": ["Catalyst 1", "Catalyst 2", "Catalyst 3"],
+  "macroStance": "risk-on|risk-off|mixed",
+  "quarterOutlook": "bullish|bearish|neutral"
+}`;
+
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      if(attempt>0)await sleep(attempt*12000);
+      const res=await fetch('/api/claude',{
+        method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+        body:JSON.stringify({
+          model:'claude-haiku-4-5-20251001',max_tokens:1400,
+          ...(worldData.fredAvailable<3?{tools:[{type:'web_search_20250305',name:'web_search'}]}:{}),
+          messages:[{role:'user',content:prompt}]
+        })
       });
-    });
-    // Sort by weight descending
-    holdings.sort((a,b) => b.pctVal - a.pctVal);
-    // Normalize if raw sum exceeds 110% (funds with leverage, repos, or derivatives
-    // can legitimately exceed 100%, but >110% likely indicates duplicate entries or
-    // fractional storage — normalize to relative weights that sum to 100%)
-    const rawTotal = holdings.reduce((s,h) => s+h.pctVal, 0);
-    if(rawTotal > 110) {
-      holdings.forEach(h => { h.pctVal = +(h.pctVal / rawTotal * 100).toFixed(4); });
-    }
-    return holdings.length ? holdings : null;
-  } catch(e) {
-    console.warn('XML parse error:', e.message);
-    return null;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TIINGO
-// ═══════════════════════════════════════════════════════════════
-async function fetchTiingo(ticker) {
-  const end = new Date();
-  const start = new Date(); start.setFullYear(start.getFullYear()-1);
-  const fmt = d => d.toISOString().split('T')[0];
-  const url = `/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`;
-  try {
-    const r = await fetch(url, {signal:AbortSignal.timeout(10000)});
-    if(!r.ok) return null;
-    const data = await r.json();
-    if(!Array.isArray(data) || data.length < 20) return null;
-    const prices = data.map(d=>d.adjClose||d.close).filter(Boolean);
-    const latest = prices[prices.length-1];
-    const p63 = prices[Math.max(0,prices.length-64)];
-    const mom63 = ((latest-p63)/p63)*100;
-    const momentum = Math.min(10, Math.max(0, 5+mom63*0.4));
-    const rets = [];
-    for(let i=1;i<prices.length;i++) rets.push((prices[i]-prices[i-1])/prices[i-1]);
-    const mean = rets.reduce((s,r)=>s+r,0)/rets.length*252;
-    const variance = rets.reduce((s,r)=>s+Math.pow(r-mean/252,2),0)/rets.length;
-    const std = Math.sqrt(variance)*Math.sqrt(252);
-    const sharpe = std>0?(mean-0.043)/std:0;
-    const riskAdj = Math.min(10, Math.max(0, 5+sharpe*1.8));
-    return { momentum:+momentum.toFixed(2), riskAdj:+riskAdj.toFixed(2), nav:latest };
-  } catch(e) { return null; }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MACRO FETCH (Anthropic web search)
-// ═══════════════════════════════════════════════════════════════
-async function fetchMacro() {
-  const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  try {
-    const res = await fetch('/api/claude', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001', max_tokens:1000,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:`Today is ${today}. Search for current values of: Gold spot price, DXY index, WTI crude, VIX, Fed funds rate, US 10yr yield, Core PCE (latest YoY), nonfarm payrolls (latest), MSCI EAFE YTD, MSCI EM YTD, S&P 500 YTD, and any dominant market theme. Reply with a concise 3-sentence summary of the macro environment as it affects US-available mutual funds. End with: MACRO_JSON:{"gold":X,"dxy":X,"vix":X,"fed":"X%","t10y":"X%","pce":"X%","sp500_ytd":"X%","eafe_ytd":"X%","em_ytd":"X%","theme":"..."}`}]
-      })
-    });
-    if(!res.ok) return null;
-    const data = await res.json();
-    return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
-  } catch(e) { return null; }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// AI HOLDINGS SCORER
-// ═══════════════════════════════════════════════════════════════
-async function scoreHoldingsWithAI(fundsWithHoldings, macroContext) {
-  // Score in batches of 5 funds to stay under the 50k token/min rate limit.
-  // Holdings are trimmed dynamically to 90% cumulative weight (capped at 50),
-  // so concentrated active funds send fewer tokens and broad index funds send more.
-  const BATCH_SIZE = 5;
-  const allScores = {};
-
-  // Returns holdings that cumulatively cover >=90% of fund weight, capped at 50.
-  // For concentrated active funds this is typically 10-20 holdings.
-  // For broad index funds (e.g. FXAIX) this may be 30-50 holdings.
-  // Either way, each batch of 5 funds stays well under the 50k token/min limit.
-  function getTop90(holdings) {
-    if(!holdings?.length) return [];
-    let cum = 0;
-    const result = [];
-    for(const h of holdings) {
-      result.push(h);
-      cum += h.pctVal || 0;
-      if(cum >= 90) break;
-      if(result.length >= 50) break; // safety ceiling
-    }
-    return result;
-  }
-
-  const batches = [];
-  for(let i = 0; i < fundsWithHoldings.length; i += BATCH_SIZE) {
-    batches.push(fundsWithHoldings.slice(i, i + BATCH_SIZE));
-  }
-
-  for(let b = 0; b < batches.length; b++) {
-    if(b > 0) await sleep(8000); // 8s between batches to stay under rate limit
-
-    const batch = batches[b];
-    const holdingSummary = batch.map(f => {
-      const top = getTop90(f.holdings)
-        .map(h => `${h.name||h.ticker}(${h.pctVal.toFixed(1)}%,${h.assetCat||'?'})`).join(', ');
-      const covered = (f.holdings||[]).slice(0, top.length)
-        .reduce((s,h) => s + (h.pctVal||0), 0).toFixed(0);
-      return `${f.ticker} [${covered}% covered]: ${top}`;
-    }).join('\n');
-
-    const prompt = `You are a quantitative fund analyst. Based on the macro environment and holdings, score each fund.
-
-MACRO CONTEXT:
-${macroContext || 'Gold ~$5100, DXY ~99 weakening, Fed 3.5%, "Sell America" theme, EAFE +8% YTD, EM +14% YTD, S&P500 -1.5% YTD'}
-
-FUND HOLDINGS (top holdings by weight):
-${holdingSummary}
-
-Score each fund on:
-1. macro (0-10): How well do the actual HOLDINGS benefit from current macro? Consider each asset class, sector, geography.
-2. manager (0-10): Based on fund type and name, manager quality/tenure/stability
-3. roi (number): Predicted % return next quarter. Be data-driven. Holdings that face "Sell America" headwinds should get negative ROI.
-
-Return ONLY valid JSON:
-{"scores":{"TICKER":{"macro":X,"manager":X,"roi":X},...}}`;
-
-    for(let attempt = 0; attempt < 3; attempt++) {
-      try {
-        if(attempt > 0) await sleep(attempt * 15000);
-        const res = await fetch('/api/claude', {
-          method:'POST',
-          headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-          body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:600, messages:[{role:'user',content:prompt}]})
-        });
-        if(res.status === 429) { console.warn(`Rate limit on batch ${b+1}/${batches.length}, retrying...`); continue; }
-        if(!res.ok) break;
-        const data = await res.json();
-        const text = (data.content||[]).find(c=>c.type==='text')?.text||'';
-        const clean = text.replace(/```json|```/g,'').trim();
-        const scores = JSON.parse(clean).scores;
-        Object.assign(allScores, scores);
-        console.log(`Scored batch ${b+1}/${batches.length}: ${Object.keys(scores).join(', ')}`);
-        break;
-      } catch(e) { console.warn(`Batch ${b+1} scoring error:`, e); break; }
-    }
-  }
-
-  return Object.keys(allScores).length > 0 ? allScores : null;
-}
-
-// AI scorer fallback (fund-level, no holdings)
-async function scoreFundsWithAI(tickers, macroContext) {
-  const seedExamples = tickers.slice(0,5).map(t=>`"${t}":{"macro":${SEED[t]?.macro||5},"manager":${SEED[t]?.manager||5},"roi":${SEED[t]?.roi||0}}`).join(',');
-  const prompt = `Score these mutual funds for Q2 2026 based on current macro conditions.
-
-MACRO: ${macroContext||'Gold $5100+, DXY ~99 weakening, Fed 3.5%, Sell America trade, EAFE/EM outperforming US'}
-
-Funds to score: ${tickers.join(', ')}
-
-Score macro (0-10), manager quality (0-10), predicted quarterly ROI (%).
-Return ONLY JSON: {"scores":{${seedExamples},...for all listed funds}}`;
-
-  for(let attempt=0; attempt<3; attempt++) {
-    try {
-      if(attempt > 0) await sleep(attempt * 15000);
-      const res = await fetch('/api/claude', {
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-        body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:1500, messages:[{role:'user',content:prompt}]})
-      });
-      if(res.status === 429) { console.warn('Rate limit hit on fallback scorer, retrying...'); continue; }
-      if(!res.ok) return null;
-      const data = await res.json();
-      const text = (data.content||[]).find(b=>b.type==='text')?.text||'';
-      const clean = text.replace(/```json|```/g,'').trim();
-      return JSON.parse(clean).scores;
-    } catch(e) { return null; }
+      if(res.status===429){console.warn('Rate limit on sector scoring, retrying...');continue}
+      if(!res.ok)break;
+      const data=await res.json();
+      const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+      const clean=text.replace(/```json|```/g,'').trim();
+      // Extract JSON from response
+      const jsonMatch=clean.match(/\{[\s\S]*\}/);
+      if(!jsonMatch)continue;
+      return JSON.parse(jsonMatch[0]);
+    }catch(e){console.warn('Sector scoring attempt',attempt+1,'failed:',e.message)}
   }
   return null;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// COMPOSITE ENGINE
+// GICS SECTOR MAPPING — FMP API with Claude fallback
 // ═══════════════════════════════════════════════════════════════
-function buildComposite(funds, tiingo, aiScores, weights) {
-  const W = weights || DEFAULT_WEIGHTS;
-  const rois = funds.map(f => aiScores?.[f.ticker]?.roi ?? SEED[f.ticker]?.roi ?? 0);
-  const mn = Math.min(...rois), mx = Math.max(...rois);
-  const normROI = v => mx===mn ? 5 : ((v-mn)/(mx-mn))*10;
-
-  return funds.map(f => {
-    const t = f.ticker;
-    const macro     = aiScores?.[t]?.macro    ?? SEED[t]?.macro    ?? 5;
-    const manager   = aiScores?.[t]?.manager  ?? SEED[t]?.manager  ?? 5;
-    const roi       = aiScores?.[t]?.roi      ?? SEED[t]?.roi      ?? 0;
-    const momentum  = tiingo?.[t]?.momentum   ?? SEED[t]?.momentum ?? 5;
-    const riskAdj   = tiingo?.[t]?.riskAdj    ?? SEED[t]?.riskAdj  ?? 5;
-    const returnScore = +normROI(roi).toFixed(2);
-
-    const composite = +(
-      macro       * (W.macro/100) +
-      momentum    * (W.momentum/100) +
-      manager     * (W.manager/100) +
-      riskAdj     * (W.riskAdj/100) +
-      returnScore * (W.returnScore/100)
-    ).toFixed(2);
-
-    return { ticker:t, name:f.name, macro, manager, roi, momentum, riskAdj, returnScore, composite,
-      alert: ALERTS[t]||null, nav: tiingo?.[t]?.nav||null,
-      holdings: APP.holdingsCache[t]?.holdings||null };
-  }).sort((a,b) => b.composite-a.composite);
-}
-
-function getTier(score) {
-  if(score>=7) return {label:'TIER 1',cls:'t1',color:'var(--green)',ring:'var(--green-bg)'};
-  if(score>=5) return {label:'TIER 2',cls:'t2',color:'var(--amber)',ring:'var(--amber-bg)'};
-  if(score>=3) return {label:'TIER 3',cls:'t3',color:'var(--blue)',ring:'var(--blue-bg)'};
-  return {label:'TIER 4',cls:'t4',color:'var(--red)',ring:'var(--red-bg)'};
-}
-
-function fp(v) { return (v>=0?'+':'')+v.toFixed(2)+'%'; }
-
-// ═══════════════════════════════════════════════════════════════
-// MAIN PIPELINE
-// ═══════════════════════════════════════════════════════════════
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
-
-async function runPipeline() {
-  if(APP.loading) return;
-  APP.loading = true; APP.source = 'loading';
-  const funds = getFunds();
-  const weights = getWeights();
-  const tiingo = {}, fundsWithHoldings = [];
-  let aiScores = null, macroText = null;
-
-  setPipeline(0, 4, 'STEP 1 / 4', `Loading holdings for ${funds.length} funds (cached or SEC EDGAR)...`);
-  render();
-
-  // Step 1: EDGAR holdings
-  for(let i=0; i<funds.length; i++) {
-    const f = funds[i];
-    setPipeline(1, 4, 'STEP 1 / 4', `SEC EDGAR: ${f.ticker} (${i+1}/${funds.length})`);
-    render();
-
-    // Check in-memory cache first
-    if(APP.holdingsCache[f.ticker]) {
-      fundsWithHoldings.push({ticker:f.ticker, name:f.name, holdings:APP.holdingsCache[f.ticker].holdings});
-      continue;
-    }
-    // Check Supabase cache
-    const cached = await supa.getHoldings(f.ticker);
-    if(cached) {
-      const age = (Date.now()-new Date(cached.fetchedAt).getTime()) / 86400000;
-      if(age < 90) {
-        APP.holdingsCache[f.ticker] = {holdings: cached.holdings, fetchedAt: cached.fetchedAt};
-        fundsWithHoldings.push({ticker:f.ticker, name:f.name, holdings: cached.holdings});
-        continue;
+async function mapTickerToSector(ticker, companyName){
+  if(!ticker)return null;
+  
+  // Check in-memory cache
+  if(APP.sectorMappingCache[ticker])return APP.sectorMappingCache[ticker];
+  
+  // Check Supabase cache (90-day TTL)
+  const cached=await supa.getSectorMapping(ticker);
+  if(cached){
+    const age=(Date.now()-new Date(cached.cached_at).getTime())/86400000;
+    if(age<90){APP.sectorMappingCache[ticker]=cached.sector;return cached.sector}
+  }
+  
+  // Try FMP API
+  try{
+    const r=await fetch(`/api/fmp/api/v3/profile/${ticker}`,{signal:AbortSignal.timeout(6000)});
+    if(r.ok){
+      const data=await r.json();
+      const sector=data?.[0]?.sector||null;
+      const industry=data?.[0]?.industry||null;
+      if(sector){
+        // Normalize FMP sector names to GICS
+        const normalized=normalizeSectorName(sector);
+        APP.sectorMappingCache[ticker]=normalized;
+        await supa.saveSectorMapping(ticker,normalized,industry);
+        return normalized;
       }
     }
-    // Fetch from EDGAR
-    const holdings = await fetchEdgarHoldings(f.ticker, f.name);
-    if(holdings?.length) {
-      APP.holdingsCache[f.ticker] = {holdings, fetchedAt:new Date().toISOString()};
-      fundsWithHoldings.push({ticker:f.ticker, name:f.name, holdings});
-      await supa.saveHoldings(f.ticker, holdings, f.name);
-    } else {
-      fundsWithHoldings.push({ticker:f.ticker, name:f.name, holdings:null});
-    }
-    await sleep(300);
-  }
-
-  // Step 2: Tiingo NAV + momentum + Sharpe
-  setPipeline(2, 4, 'STEP 2 / 4', `Fetching live NAV + momentum + Sharpe from Tiingo...`);
-  render();
-  for(let i=0; i<funds.length; i++) {
-    setPipeline(2, 4, 'STEP 2 / 4', `Tiingo: ${funds[i].ticker} (${i+1}/${funds.length})`);
-    render();
-    const d = await fetchTiingo(funds[i].ticker);
-    if(d) tiingo[funds[i].ticker] = d;
-    await sleep(200);
-  }
-
-  // Step 3: Macro web search — always fresh, drives new investment thesis
-  setPipeline(3, 4, 'STEP 3 / 4', 'Searching live macro data: gold, DXY, rates, VIX, global returns...');
-  render();
-  macroText = await fetchMacro();
-  APP.macroText = macroText;
-
-  // Step 4: AI scoring — always runs with fresh macro + cached holdings
-  // Holdings are already cached (90-day Supabase cache), so Claude gets
-  // current macro context without any EDGAR re-fetching overhead
-  setPipeline(4, 4, 'STEP 4 / 4', 'AI scoring (fresh macro + cached holdings)...');
-  render();
-  const fundsWithHoldingsData = fundsWithHoldings.filter(f=>f.holdings?.length);
-  const fundsWithoutHoldings = fundsWithHoldings.filter(f=>!f.holdings?.length);
-
-  if(fundsWithHoldingsData.length) {
-    aiScores = await scoreHoldingsWithAI(fundsWithHoldingsData, macroText) || {};
-  } else {
-    aiScores = {};
-  }
-  if(fundsWithoutHoldings.length) {
-    const fallback = await scoreFundsWithAI(fundsWithoutHoldings.map(f=>f.ticker), macroText);
-    if(fallback) Object.assign(aiScores, fallback);
-  }
-
-  // Build composite
-  APP.funds = buildComposite(funds, tiingo, aiScores, weights);
-  APP.source = aiScores && Object.keys(aiScores).length > 0 ? 'live' : 'seed';
-  APP.lastRun = new Date().toLocaleString();
-  APP.selectedFund = APP.funds[0]?.ticker;
-
-  // Save run
-  const prof = activeProfile();
-  if(prof) {
-    await supa.saveRun({
-      user_id: prof.id,
-      source: APP.source,
-      macro_snapshot: macroText?.slice(0,4000)||null,
-      model_weights: JSON.stringify(APP.funds.map(f=>({ticker:f.ticker,composite:f.composite,roi:f.roi,macro:f.macro,manager:f.manager,momentum:f.momentum,riskAdj:f.riskAdj}))),
-      created_at: new Date().toISOString()
-    });
-  }
-
-  APP.loading = false;
-  APP.pipeline = {step:0, total:4, detail:'', stepName:''};
-  render();
+  }catch(e){/* FMP unavailable */}
+  
+  return null; // Will be handled by Claude batch classification below
 }
 
-function setPipeline(step, total, stepName, detail) {
-  APP.pipeline = {step, total, stepName, detail};
+function normalizeSectorName(fmpSector){
+  const map={
+    'Technology':'Technology','Financial Services':'Financials','Financials':'Financials',
+    'Healthcare':'Healthcare','Consumer Cyclical':'Consumer Discretionary',
+    'Consumer Defensive':'Consumer Staples','Basic Materials':'Materials',
+    'Communication Services':'Communication Services','Energy':'Energy',
+    'Industrials':'Industrials','Utilities':'Utilities','Real Estate':'Real Estate',
+  };
+  return map[fmpSector]||fmpSector;
+}
+
+// Batch-classify holdings with unknown sectors using Claude
+async function classifyUnknownSectors(unknownHoldings){
+  if(!unknownHoldings.length)return{};
+  const items=unknownHoldings.slice(0,40).map(h=>`${h.ticker||'?'}|${h.name||'Unknown'}`).join('\n');
+  const prompt=`Classify each of these securities into exactly one GICS sector. Valid sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Energy, Industrials, Materials, Utilities, Real Estate, Communication Services, Cash/Other.
+
+Securities (ticker|name):
+${items}
+
+Return ONLY valid JSON: {"classifications":{"TICKER":"SECTOR",...}}
+For holdings with no clear ticker, use the holding name as the key.`;
+  try{
+    const res=await fetch('/api/claude',{
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok)return{};
+    const data=await res.json();
+    const text=(data.content||[]).find(b=>b.type==='text')?.text||'';
+    const clean=text.replace(/```json|```/g,'').trim();
+    const jsonMatch=clean.match(/\{[\s\S]*\}/);
+    return jsonMatch?JSON.parse(jsonMatch[0]).classifications||{}:{};
+  }catch(e){return{}}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HOLDINGS-LEVEL SCORING + FUND ROLLUP
+// ═══════════════════════════════════════════════════════════════
+async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoData, sectorMomentum, weights){
+  const W=weights||DEFAULT_WEIGHTS;
+  const results=[];
+  
+  // Step A: Map all holdings to sectors (batch FMP + Claude fallback)
+  const allHoldings=[];
+  fundsWithHoldings.forEach(f=>{
+    (f.holdings||[]).forEach(h=>{if(h.ticker&&!APP.sectorMappingCache[h.ticker])allHoldings.push(h)});
+  });
+  
+  // Try FMP for unmapped tickers (batched to respect 250/day limit)
+  const unmapped=allHoldings.filter(h=>!APP.sectorMappingCache[h.ticker]).slice(0,60);
+  for(const h of unmapped){
+    await mapTickerToSector(h.ticker,h.name);
+    await sleep(100);
+  }
+  
+  // Claude fallback for still-unmapped
+  const stillUnmapped=allHoldings.filter(h=>!APP.sectorMappingCache[h.ticker]);
+  if(stillUnmapped.length){
+    const clsResult=await classifyUnknownSectors(stillUnmapped);
+    Object.entries(clsResult).forEach(([key,sector])=>{
+      APP.sectorMappingCache[key]=sector;
+    });
+  }
+  
+  // Step B: Score each fund via holdings rollup
+  for(const fund of fundsWithHoldings){
+    const holdings=fund.holdings||[];
+    const tiingo=tiingoData[fund.ticker]||null;
+    
+    if(!holdings.length){
+      // No holdings — fall back to seed + Tiingo
+      const seed=SEED[fund.ticker]||{composite:5,roi:0};
+      results.push({
+        ticker:fund.ticker,name:fund.name,
+        composite:seed.composite,roi:seed.roi,
+        momentum:tiingo?.momentum||5,riskAdj:tiingo?.riskAdj||5,
+        nav:tiingo?.nav||null,
+        sectorBreakdown:{},sectorScore:5,worldThesisScore:5,
+        alert:ALERTS[fund.ticker]||null,holdings:null,
+        tier:classifyTier([seed.composite],[seed.composite]).find(t=>true)||getTierLabel(5),
+        modZ:0,
+      });
+      continue;
+    }
+    
+    // Map holdings to sectors and compute sector exposure
+    const sectorExposure={};
+    let totalMapped=0;
+    holdings.forEach(h=>{
+      const sector=APP.sectorMappingCache[h.ticker]||APP.sectorMappingCache[h.name]||h.sector||null;
+      if(sector&&GICS_SECTORS[sector]){
+        sectorExposure[sector]=(sectorExposure[sector]||0)+h.pctVal;
+        totalMapped+=h.pctVal;
+      }
+    });
+    
+    // Compute world-thesis-weighted score for this fund
+    let worldThesisScore=5.0;
+    if(totalMapped>5&&sectorScores){
+      let weightedSectorScore=0;
+      let totalWeight=0;
+      Object.entries(sectorExposure).forEach(([sector,pct])=>{
+        const ss=sectorScores[sector];
+        if(ss){weightedSectorScore+=ss.score*(pct/100);totalWeight+=pct/100}
+      });
+      // Fill unmapped portion with neutral 5.0
+      const unmappedFraction=Math.max(0,(100-totalMapped)/100);
+      worldThesisScore=totalWeight>0?(weightedSectorScore+5.0*unmappedFraction)/(totalWeight+unmappedFraction):5.0;
+    }
+    
+    // HHI concentration penalty
+    const hhi=Object.values(sectorExposure).reduce((s,v)=>s+(v/100)*(v/100),0);
+    const concentrationPenalty=Math.max(0,(hhi-0.18)*1.5);
+    
+    // Individual holding momentum (top 5 by weight)
+    const topHoldings=holdings.slice(0,8);
+    let holdingMomentumSum=0, holdingMomentumCount=0;
+    for(const h of topHoldings){
+      if(h.ticker){
+        const hd=await fetchTiingo(h.ticker).catch(()=>null);
+        if(hd?.momentum){holdingMomentumSum+=hd.momentum*(h.pctVal/100);holdingMomentumCount+=h.pctVal/100}
+        await sleep(100);
+      }
+    }
+    const holdingMomentum=holdingMomentumCount>0?holdingMomentumSum/holdingMomentumCount:(tiingo?.momentum||5);
+    
+    // Tiingo-based scores for the fund itself
+    const fundMomentum=tiingo?.momentum||5;
+    const riskAdj=tiingo?.riskAdj||5;
+    
+    // Blend momentum: 50% fund-level, 50% top-holdings
+    const blendedMomentum=(fundMomentum*0.5+holdingMomentum*0.5);
+    
+    // Predict ROI: world thesis score → % return estimate
+    const roi=predictROI(worldThesisScore,blendedMomentum,riskAdj);
+    
+    // Composite score
+    const composite=Math.min(10,Math.max(1,
+      worldThesisScore*(W.worldThesis/100)+
+      blendedMomentum*(W.momentum/100)+
+      riskAdj*(W.riskAdj/100)+
+      5.0*(W.managerQuality/100)+  // placeholder; manager scored by Claude in thesis step
+      normalizeROI(roi,results)*(W.returnScore/100)
+    )-concentrationPenalty);
+    
+    results.push({
+      ticker:fund.ticker,name:fund.name,
+      composite:+composite.toFixed(2),roi:+roi.toFixed(2),
+      worldThesisScore:+worldThesisScore.toFixed(2),
+      momentum:+blendedMomentum.toFixed(2),riskAdj:+riskAdj.toFixed(2),
+      nav:tiingo?.nav||null,
+      sectorBreakdown:sectorExposure,sectorScore:+worldThesisScore.toFixed(2),
+      alert:ALERTS[fund.ticker]||null,
+      holdings:fund.holdings,
+      modZ:0,tier:null, // will be set by statistical analysis
+    });
+  }
+  
+  // Normalize returnScore now that we have all ROIs
+  const rois=results.map(f=>f.roi);
+  const mn=Math.min(...rois),mx=Math.max(...rois);
+  const W2=weights||DEFAULT_WEIGHTS;
+  results.forEach(f=>{
+    const rs=mx===mn?5:((f.roi-mn)/(mx-mn))*10;
+    f.returnScore=+rs.toFixed(2);
+    f.composite=+Math.min(10,Math.max(1,
+      f.worldThesisScore*(W2.worldThesis/100)+
+      f.momentum*(W2.momentum/100)+
+      f.riskAdj*(W2.riskAdj/100)+
+      5.0*(W2.managerQuality/100)+
+      rs*(W2.returnScore/100)
+    )).toFixed(2);
+  });
+  
+  return results;
+}
+
+function predictROI(worldScore,momentum,riskAdj){
+  // World thesis score maps to ROI: score 10=+8%, score 5=0%, score 1=-6%
+  const thesisROI=(worldScore-5)*1.6;
+  const momentumROI=(momentum-5)*0.8;
+  const riskROI=(riskAdj-5)*0.4;
+  return+(thesisROI*0.55+momentumROI*0.30+riskROI*0.15).toFixed(2);
+}
+
+function normalizeROI(roi,allFunds){
+  const rois=allFunds.map(f=>f.roi);
+  if(!rois.length)return 5;
+  const mn=Math.min(...rois,roi),mx=Math.max(...rois,roi);
+  return mx===mn?5:((roi-mn)/(mx-mn))*10;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATISTICAL OUTLIER DETECTION — Modified Z-Score
+// ═══════════════════════════════════════════════════════════════
+function applyStatisticalAnalysis(funds){
+  const scores=funds.map(f=>f.composite);
+  
+  // Median
+  const sorted=[...scores].sort((a,b)=>a-b);
+  const n=sorted.length;
+  const median=n%2===0?(sorted[n/2-1]+sorted[n/2])/2:sorted[Math.floor(n/2)];
+  
+  // MAD (Median Absolute Deviation)
+  const deviations=scores.map(s=>Math.abs(s-median));
+  const devSorted=[...deviations].sort((a,b)=>a-b);
+  const mad=n%2===0?(devSorted[n/2-1]+devSorted[n/2])/2:devSorted[Math.floor(n/2)];
+  
+  return funds.map(f=>{
+    const modZ=mad>0?+(0.6745*(f.composite-median)/mad).toFixed(3):0;
+    const tier=getTierFromModZ(modZ);
+    return{...f,modZ,tier,median,mad};
+  }).sort((a,b)=>b.composite-a.composite);
+}
+
+function getTierFromModZ(modZ){
+  if(modZ>=2.0) return{label:'BREAKAWAY',cls:'t1',emoji:'🏆',color:'var(--green)',desc:'Statistically exceptional — significantly above peer group'};
+  if(modZ>=1.2) return{label:'STRONG',cls:'t1',emoji:'⭐',color:'var(--green)',desc:'Strong performer — meaningfully above average'};
+  if(modZ>=0.3) return{label:'SOLID',cls:'t2',emoji:'✓',color:'var(--amber)',desc:'Above average — solid choice for current environment'};
+  if(modZ>=-0.5)return{label:'NEUTRAL',cls:'t3',emoji:'→',color:'var(--blue)',desc:'In line with peer average'};
+  return{label:'WEAK',cls:'t4',emoji:'⚠',color:'var(--red)',desc:'Below average for current conditions'};
+}
+
+function getTierLabel(score){return getTierFromModZ(score>=7?2:score>=5?0.5:score>=3?-0.3:-1)}
+
+// ═══════════════════════════════════════════════════════════════
+// ALLOCATION ENGINE — Risk tolerance aware (1–9 scale)
+// ═══════════════════════════════════════════════════════════════
+function buildAllocation(rankedFunds, riskTolerance){
+  const rt=riskTolerance||5;
+  
+  // Risk tolerance controls:
+  // 1-2: Only SOLID+ tier, max volatility cutoff, spread across ≥6 funds
+  // 3-4: SOLID+ tier, moderate concentration, ≥4 funds
+  // 5:   Balanced — SOLID+ tier, ≤5 funds
+  // 6-7: STRONG+ preferred, some concentration allowed
+  // 8-9: BREAKAWAY+STRONG focused, concentrate in top outliers, risk-tolerant
+
+  const eligible=rankedFunds.filter(f=>{
+    if(rt<=3)return f.modZ>=-0.3&&f.riskAdj>=4.5; // conservative: require decent Sharpe
+    if(rt<=5)return f.modZ>=0.1;                   // moderate: above median
+    if(rt<=7)return f.modZ>=0.3||f.composite>=6;   // leaning aggressive
+    return f.modZ>=0.5||f.composite>=5.5;           // aggressive: any strong+ fund
+  });
+  
+  if(!eligible.length)return[];
+  
+  // How many funds to include
+  let maxFunds;
+  if(rt<=2) maxFunds=Math.min(8,eligible.length);
+  else if(rt<=4) maxFunds=Math.min(6,eligible.length);
+  else if(rt<=6) maxFunds=Math.min(5,eligible.length);
+  else maxFunds=Math.min(3,eligible.length); // concentrate in top picks
+  
+  const selected=eligible.slice(0,maxFunds);
+  
+  // Allocation proportional to composite score, with risk-tolerance skew
+  // Higher risk = more concentration toward top funds
+  const concentrationPower=0.5+rt*0.15; // rt=1 → pow=0.65 (even), rt=9 → pow=1.85 (concentrated)
+  const rawAllocs=selected.map(f=>Math.pow(f.composite,concentrationPower));
+  const total=rawAllocs.reduce((s,v)=>s+v,0);
+  
+  return selected.map((f,i)=>({
+    ...f,
+    allocationPct:+(rawAllocs[i]/total*100).toFixed(1),
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// THESIS GENERATOR — Plain English investment narrative
+// ═══════════════════════════════════════════════════════════════
+async function generateInvestorThesis(rankedFunds, sectorScores, investmentThesis, allocationResult, riskTolerance){
+  const rt=riskTolerance||5;
+  const rtLabel=rt<=2?'very conservative':rt<=4?'conservative-moderate':rt<=6?'balanced':rt<=7?'growth-oriented':'aggressive';
+  
+  const topFunds=allocationResult.slice(0,5).map(f=>`${f.ticker} (${f.allocationPct}%): ${f.name} — composite ${f.composite}, pred ROI ${f.roi>0?'+':''}${f.roi}%`).join('\n');
+  const avoidFunds=rankedFunds.filter(f=>f.tier.label==='WEAK').map(f=>f.ticker).join(', ')||'none';
+  
+  const sectorWinners=Object.entries(sectorScores||{}).filter(([,v])=>v.score>=7).map(([k,v])=>`${k} (${v.score}/10): ${v.reason}`).join('\n')||'No strong sector winners identified';
+  const sectorLosers=Object.entries(sectorScores||{}).filter(([,v])=>v.score<=4).map(([k,v])=>`${k} (${v.score}/10): ${v.reason}`).join('\n')||'No major sector losers identified';
+  
+  const prompt=`You are writing a plain-English investment recommendation for a self-directed 401K investor with a ${rtLabel} risk profile (${rt}/9).
+
+CURRENT INVESTMENT THESIS:
+${investmentThesis?.thesis||'Market conditions uncertain — see sector scores'}
+
+DOMINANT THEME: ${investmentThesis?.dominantTheme||'Mixed signals'}
+
+RECOMMENDED ALLOCATION:
+${topFunds}
+
+FUNDS TO AVOID: ${avoidFunds}
+
+SECTOR WINNERS (score ≥7/10):
+${sectorWinners}
+
+SECTOR LOSERS (score ≤4/10):
+${sectorLosers}
+
+RISK FACTORS: ${(investmentThesis?.riskFactors||[]).join(', ')}
+CATALYSTS: ${(investmentThesis?.catalysts||[]).join(', ')}
+
+Write a 400-word investor letter in plain English. The tone should match the risk profile: ${rtLabel}. 
+Structure: (1) What's happening in the world right now that matters for this portfolio, (2) Why these specific funds are recommended — what do the companies inside them DO that positions them well, (3) What to watch out for, (4) Clear statement of the recommendation.
+Use "you" and "your portfolio". Short sentences. No jargon without explanation. Readable grade 7-8.
+Return ONLY the letter text, no JSON.`;
+
+  try{
+    const res=await fetch('/api/claude',{
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:700,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok)return null;
+    const data=await res.json();
+    return(data.content||[]).find(b=>b.type==='text')?.text||null;
+  }catch(e){return null}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PREDICTION TRACKING — Store and retrieve ROI predictions
+// ═══════════════════════════════════════════════════════════════
+async function storePredictions(rankedFunds, worldData, investmentThesis, allocationResult){
+  const prof=activeProfile();
+  if(!prof)return null;
+  
+  const cycleId=crypto.randomUUID?crypto.randomUUID():`cycle_${Date.now()}`;
+  const now=new Date().toISOString();
+  const closesAt=new Date(Date.now()+90*86400000).toISOString();
+  
+  // Save prediction cycle
+  await supa.savePredictionCycle({
+    id:cycleId,
+    user_id:prof.id,
+    created_at:now,
+    closes_at:closesAt,
+    world_snapshot:JSON.stringify({fredData:worldData?.fredData,headlines:worldData?.headlines?.slice(0,10)}),
+    investment_thesis:investmentThesis?.thesis||null,
+    dominant_theme:investmentThesis?.dominantTheme||null,
+    risk_factors:investmentThesis?.riskFactors||[],
+    catalysts:investmentThesis?.catalysts||[],
+    sector_scores:JSON.stringify(APP.sectorScores||{}),
+    risk_tolerance:prof.risk||5,
+  });
+  
+  // Save individual fund predictions
+  const predictions=rankedFunds.map(f=>({
+    cycle_id:cycleId,
+    fund_ticker:f.ticker,
+    predicted_composite:f.composite,
+    predicted_roi:f.roi,
+    predicted_tier:f.tier?.label||'NEUTRAL',
+    predicted_rank:rankedFunds.indexOf(f)+1,
+    nav_at_prediction:f.nav||null,
+    nav_at_close:null,
+    actual_roi:null,
+    sector_breakdown:JSON.stringify(f.sectorBreakdown||{}),
+    allocation_pct:allocationResult.find(a=>a.ticker===f.ticker)?.allocationPct||0,
+    created_at:now,
+  }));
+  await supa.saveFundPredictions(predictions);
+  
+  return cycleId;
+}
+
+// Check for prediction cycles that have closed (>90 days) and fetch actual prices
+async function checkAndUpdateClosedPredictions(){
+  const prof=activeProfile();
+  if(!prof)return;
+  
+  try{
+    const cycles=await supa.getPredictionCycles(prof.id,20);
+    if(!cycles?.length)return;
+    
+    const now=Date.now();
+    for(const cycle of cycles){
+      const closesAt=new Date(cycle.closes_at).getTime();
+      if(closesAt>now)continue; // not closed yet
+      
+      // Get predictions for this cycle
+      const preds=await supa.getFundPredictions(cycle.id);
+      if(!preds?.length)continue;
+      
+      const needsActual=preds.filter(p=>p.actual_roi===null&&p.nav_at_prediction!==null);
+      if(!needsActual.length)continue;
+      
+      // Fetch current NAV for each fund
+      for(const pred of needsActual.slice(0,5)){
+        const d=await fetchTiingo(pred.fund_ticker);
+        if(d?.nav&&pred.nav_at_prediction){
+          const actualRoi=((d.nav-pred.nav_at_prediction)/pred.nav_at_prediction)*100;
+          await supa.updateFundPrediction(pred.id,{nav_at_close:d.nav,actual_roi:+actualRoi.toFixed(3)});
+        }
+        await sleep(300);
+      }
+    }
+  }catch(e){console.warn('Prediction update check failed:',e.message)}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN PIPELINE — 6 steps
+// ═══════════════════════════════════════════════════════════════
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function runPipeline(){
+  if(APP.loading)return;
+  APP.loading=true;APP.source='loading';
+  const funds=getFunds();
+  const weights=getWeights();
+  const tiingo={};
+  const fundsWithHoldings=[];
+  
+  function setPL(step,total,stepName,detail){APP.pipeline={step,total,stepName,detail};render()}
+  
+  // ── STEP 1: EDGAR Holdings ────────────────────────────────────
+  setPL(1,6,'STEP 1 / 6',`Loading holdings for ${funds.length} funds from SEC EDGAR cache or filing...`);
+  for(let i=0;i<funds.length;i++){
+    const f=funds[i];
+    setPL(1,6,'STEP 1 / 6',`SEC EDGAR: ${f.ticker} (${i+1}/${funds.length})`);
+    render();
+    if(APP.holdingsCache[f.ticker]){fundsWithHoldings.push({...f,holdings:APP.holdingsCache[f.ticker].holdings});continue}
+    const cached=await supa.getHoldings(f.ticker);
+    if(cached){
+      const age=(Date.now()-new Date(cached.fetchedAt).getTime())/86400000;
+      if(age<90){APP.holdingsCache[f.ticker]=cached;fundsWithHoldings.push({...f,holdings:cached.holdings});continue}
+    }
+    if(MONEY_MARKET_FUNDS.has(f.ticker)){fundsWithHoldings.push({...f,holdings:null});continue}
+    const holdings=await fetchEdgarHoldings(f.ticker,f.name);
+    if(holdings?.length){
+      APP.holdingsCache[f.ticker]={holdings,fetchedAt:new Date().toISOString()};
+      fundsWithHoldings.push({...f,holdings});
+      await supa.saveHoldings(f.ticker,holdings,f.name);
+    }else{fundsWithHoldings.push({...f,holdings:null})}
+    await sleep(300);
+  }
+  
+  // ── STEP 2: Tiingo NAV + Sector ETF Momentum ─────────────────
+  setPL(2,6,'STEP 2 / 6','Fetching fund NAV, momentum & Sharpe ratios from Tiingo...');
+  for(let i=0;i<funds.length;i++){
+    setPL(2,6,'STEP 2 / 6',`Tiingo prices: ${funds[i].ticker} (${i+1}/${funds.length})`);render();
+    const d=await fetchTiingo(funds[i].ticker);
+    if(d)tiingo[funds[i].ticker]=d;
+    await sleep(200);
+  }
+  setPL(2,6,'STEP 2 / 6','Fetching sector ETF momentum (XLK, XLF, XLE, XLV...)');render();
+  const sectorMomentum=await fetchSectorMomentum();
+  
+  // ── STEP 3: World Intelligence ────────────────────────────────
+  setPL(3,6,'STEP 3 / 6','Building world intelligence: FRED economic data + GDELT geopolitical news...');render();
+  const worldData=await buildWorldIntelligence(detail=>{setPL(3,6,'STEP 3 / 6',detail);render()});
+  APP.worldData=worldData;
+  
+  // ── STEP 4: Sector Scoring ────────────────────────────────────
+  setPL(4,6,'STEP 4 / 6','Claude forming investment thesis and scoring all 11 GICS sectors...');render();
+  const sectorResult=await scoreSectorsWithClaude(worldData,sectorMomentum);
+  if(sectorResult){
+    APP.sectorScores=sectorResult.sectorScores;
+    APP.investmentThesis=sectorResult;
+    APP.dominantTheme=sectorResult.dominantTheme;
+  }
+  
+  // ── STEP 5: Holdings-Level Scoring + Fund Rollup ─────────────
+  setPL(5,6,'STEP 5 / 6','Mapping holdings to GICS sectors, scoring each holding, rolling up to fund composite...');render();
+  let rankedFunds=await scoreHoldingsAndRollup(fundsWithHoldings,APP.sectorScores,tiingo,sectorMomentum,weights);
+  
+  // Apply statistical analysis
+  rankedFunds=applyStatisticalAnalysis(rankedFunds);
+  APP.funds=rankedFunds;
+  
+  // ── STEP 6: Allocation + Investor Thesis ─────────────────────
+  setPL(6,6,'STEP 6 / 6','Generating allocation recommendation and plain-English investor thesis...');render();
+  const prof=activeProfile();
+  const riskTolerance=prof?.risk||5;
+  const allocationResult=buildAllocation(rankedFunds,riskTolerance);
+  APP.allocationResult=allocationResult;
+  
+  const investorLetter=await generateInvestorThesis(rankedFunds,APP.sectorScores,APP.investmentThesis,allocationResult,riskTolerance);
+  APP.investorLetter=investorLetter;
+  
+  // Store predictions for tracking
+  APP.currentCycleId=await storePredictions(rankedFunds,worldData,APP.investmentThesis,allocationResult);
+  
+  // Save run to history
+  if(prof){
+    await supa.saveRun({
+      user_id:prof.id,source:'live',
+      macro_snapshot:(APP.investmentThesis?.thesis||'').slice(0,2000),
+      model_weights:JSON.stringify(rankedFunds.map(f=>({ticker:f.ticker,composite:f.composite,roi:f.roi,tier:f.tier?.label}))),
+      created_at:new Date().toISOString(),
+    });
+  }
+  
+  APP.source=APP.sectorScores?'live':'partial';
+  APP.lastRun=new Date().toLocaleString();
+  APP.selectedFund=rankedFunds[0]?.ticker;
+  APP.loading=false;
+  APP.pipeline={step:0,total:6,detail:'',stepName:''};
+  render();
 }
 
 // ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData = {name:'', risk:7, horizon:15, goals:'', contribution:250, frequency:'biweekly', funds:[...DEFAULT_FUNDS], fundInput:''};
+let wizardData={name:'',risk:5,horizon:15,goals:'',contribution:250,frequency:'biweekly',funds:[...DEFAULT_FUNDS],fundInput:''};
 
-function renderWizard() {
-  const step = APP.wizardStep;
-  const steps = ['Profile','Funds','Ready'];
-  const dots = steps.map((s,i) => `<div class="step-dot${i<step?' on':''}" title="${s}"></div>`).join('');
-
-  let body = '';
-  if(step===1) {
-    body = `
+function renderWizard(){
+  const step=APP.wizardStep;
+  const dots=[1,2,3].map(i=>`<div class="step-dot${i<=step?' on':''}"></div>`).join('');
+  
+  let body='';
+  if(step===1){
+    body=`
       <div style="margin-bottom:20px">
         <label class="label" style="display:block;margin-bottom:6px">Your Name</label>
         <input type="text" id="wName" placeholder="e.g. Robert" value="${wizardData.name}" oninput="wizardData.name=this.value" style="margin-bottom:14px">
-        <label class="label" style="display:block;margin-bottom:6px">Risk Tolerance <span id="riskLabel" style="color:var(--text);font-family:'JetBrains Mono',monospace">${wizardData.risk}/10</span></label>
-        <input type="range" id="wRisk" min="1" max="10" value="${wizardData.risk}" oninput="wizardData.risk=parseInt(this.value);document.getElementById('riskLabel').textContent=this.value+'/10'" style="width:100%;margin-bottom:14px;accent-color:var(--accent)">
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:-10px;margin-bottom:14px"><span>Conservative</span><span>Aggressive</span></div>
+        <label class="label" style="display:block;margin-bottom:6px">Risk Tolerance
+          <span id="riskLabel" style="font-family:'JetBrains Mono',monospace;color:var(--text);margin-left:8px">${wizardData.risk}/9 — ${riskLabel(wizardData.risk)}</span>
+        </label>
+        <input type="range" id="wRisk" min="1" max="9" value="${wizardData.risk}" oninput="wizardData.risk=parseInt(this.value);document.getElementById('riskLabel').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:6px;accent-color:var(--accent)">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:16px"><span>1 — Protect capital above all</span><span>9 — Maximize gains, accept risk</span></div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">${riskDescription(wizardData.risk)}</div>
         <label class="label" style="display:block;margin-bottom:6px">Investment Horizon (years)</label>
-        <input type="number" id="wHorizon" value="${wizardData.horizon}" min="1" max="40" oninput="wizardData.horizon=parseInt(this.value)||15" style="margin-bottom:14px">
+        <input type="number" value="${wizardData.horizon}" min="1" max="40" oninput="wizardData.horizon=parseInt(this.value)||15" style="margin-bottom:14px">
         <label class="label" style="display:block;margin-bottom:6px">Investment Goals (optional)</label>
-        <textarea id="wGoals" rows="2" placeholder="e.g. Maximize growth, tolerate volatility" style="resize:none">${wizardData.goals}</textarea>
-        <div style="display:flex;gap:12px;margin-top:14px">
-          <div style="flex:1">
-            <label class="label" style="display:block;margin-bottom:6px">Contribution Amount</label>
-            <div style="position:relative">
-              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">$</span>
-              <input type="number" id="wContrib" value="${wizardData.contribution}" min="0" step="1" oninput="wizardData.contribution=parseFloat(this.value)||0" style="padding-left:22px">
-            </div>
-          </div>
-          <div style="flex:1">
-            <label class="label" style="display:block;margin-bottom:6px">Frequency</label>
-            <select id="wFreq" onchange="wizardData.frequency=this.value">
-              <option value="weekly" ${wizardData.frequency==='weekly'?'selected':''}>Weekly</option>
-              <option value="biweekly" ${wizardData.frequency==='biweekly'?'selected':''}>Bi-weekly</option>
-              <option value="semimonthly" ${wizardData.frequency==='semimonthly'?'selected':''}>Semi-monthly</option>
-              <option value="monthly" ${wizardData.frequency==='monthly'?'selected':''}>Monthly</option>
-            </select>
-          </div>
+        <textarea id="wGoals" rows="2" style="resize:none;margin-bottom:14px" placeholder="e.g. Maximize long-term growth, tolerate short-term volatility">${wizardData.goals}</textarea>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution</label>
+            <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
+            <input type="number" value="${wizardData.contribution}" min="0" oninput="wizardData.contribution=parseFloat(this.value)||0" style="padding-left:22px"></div></div>
+          <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Frequency</label>
+            <select onchange="wizardData.frequency=this.value">
+              ${['weekly','biweekly','semimonthly','monthly'].map(f=>`<option value="${f}" ${wizardData.frequency===f?'selected':''}>${f}</option>`).join('')}
+            </select></div>
         </div>
       </div>`;
-  } else if(step===2) {
-    const chips = wizardData.funds.map(f => `
-      <span class="fund-chip">
-        <span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span>
-        <button onclick="removeFund('${f.ticker}')" title="Remove">×</button>
-      </span>`).join(' ');
-    body = `
-      <div>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add the mutual fund tickers from your 401K plan. We'll fetch their holdings from SEC EDGAR and score them from the inside out.</p>
-        <label class="label" style="display:block;margin-bottom:6px">Add Fund Ticker</label>
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <input type="text" id="fundInput" placeholder="e.g. VFINX" oninput="wizardData.fundInput=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')addFund()" value="${wizardData.fundInput}" style="flex:1;text-transform:uppercase">
-          <button class="btn btn-primary" onclick="addFund()">Add</button>
-        </div>
-        <div id="fund-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chips}</div>
-        <p class="note">${wizardData.funds.length} fund${wizardData.funds.length!==1?'s':''} in your universe · Pre-loaded with Robert's 22 401K funds</p>
-      </div>`;
-  } else {
-    const name = wizardData.name || 'you';
-    body = `
-      <div style="text-align:center;padding:20px 0">
-        <div style="font-size:48px;margin-bottom:16px">📊</div>
-        <h2 style="font-family:'Libre Baskerville',serif;font-size:22px;margin-bottom:10px">Ready, ${name}!</h2>
-        <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:20px">
-          FundLens will now analyze your ${wizardData.funds.length} funds from the holdings level up — fetching SEC EDGAR N-PORT filings, live NAV data, and AI-powered macro scoring.
-        </p>
-        <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:left;font-size:12px;color:var(--text2)">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Risk Profile</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/10</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Horizon</span><span style="font-weight:700;color:var(--text)">${wizardData.horizon} years</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Contribution</span><span style="font-weight:700;color:var(--text)">$${wizardData.contribution} ${wizardData.frequency}</span></div>
-        </div>
-      </div>`;
-  }
-
-  return `<div class="wizard-wrap">
-    <div class="wizard-card fade-in">
-      <div class="wizard-header">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="app-logo">Fund<span>Lens</span></div>
-          <div class="step-dots">${dots}</div>
-        </div>
-        <h1 style="font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:4px">${['','Set Up Your Profile','Your Fund Universe','You\'re All Set'][step]}</h1>
-        <p style="font-size:13px;color:var(--text2)">${['','Tell us about your investment approach so FundLens can calibrate its recommendations.','Add the funds available in your 401K plan.','FundLens is ready to run your first live analysis.'][step]}</p>
+  }else if(step===2){
+    const chips=wizardData.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFund('${f.ticker}')">×</button></span>`).join(' ');
+    body=`<div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add every mutual fund ticker available in your 401K. FundLens will fetch their actual holdings from SEC EDGAR and score each company inside the fund based on current world conditions.</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input type="text" id="fundInput" placeholder="e.g. VFINX" oninput="wizardData.fundInput=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')addFund()" value="${wizardData.fundInput}" style="flex:1;text-transform:uppercase">
+        <button class="btn btn-primary" onclick="addFund()">Add</button>
       </div>
-      <div class="wizard-body">${body}</div>
-      <div class="wizard-footer">
-        <div>
-          ${step>1?`<button class="btn btn-ghost" onclick="APP.wizardStep--;render()">← Back</button>`:'<div></div>'}
-        </div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <span style="font-size:11px;color:var(--text3)">${step} of 3</span>
-          ${step<3
-            ? `<button class="btn btn-primary" onclick="wizardNext()">Continue →</button>`
-            : `<button class="btn btn-green" onclick="wizardFinish()">▶ Start Analysis</button>`
-          }
-        </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chips}</div>
+      <p class="note">${wizardData.funds.length} fund${wizardData.funds.length!==1?'s':''} · Pre-loaded with the default 401K fund universe</p>
+    </div>`;
+  }else{
+    const name=wizardData.name||'you';
+    body=`<div style="text-align:center;padding:20px 0">
+      <div style="font-size:48px;margin-bottom:16px">📊</div>
+      <h2 style="font-family:'Libre Baskerville',serif;font-size:22px;margin-bottom:10px">Ready, ${name}!</h2>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:20px">FundLens will analyze each fund from the holdings level up — mapping every company to its industry sector, scoring it against current world conditions, then rolling up to a fund composite ranking.</p>
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:left;font-size:12px;color:var(--text2)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Risk Tolerance</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/9 (${riskLabel(wizardData.risk)})</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Horizon</span><span style="font-weight:700;color:var(--text)">${wizardData.horizon} years</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Contribution</span><span style="font-weight:700;color:var(--text)">$${wizardData.contribution} ${wizardData.frequency}</span></div>
+      </div>
+    </div>`;
+  }
+  
+  return `<div class="wizard-wrap"><div class="wizard-card fade-in">
+    <div class="wizard-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="app-logo">Fund<span>Lens</span></div><div class="step-dots">${dots}</div>
+      </div>
+      <h1 style="font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:4px">${['','Set Up Your Profile','Your Fund Universe','You\'re All Set'][step]}</h1>
+      <p style="font-size:13px;color:var(--text2)">${['','Define your risk tolerance so FundLens can tailor recommendations to your investment goals.','Add all funds available in your 401K plan.','FundLens will run a full live analysis, scoring each fund from the holdings level up.'][step]}</p>
+    </div>
+    <div class="wizard-body">${body}</div>
+    <div class="wizard-footer">
+      <div>${step>1?`<button class="btn btn-ghost" onclick="APP.wizardStep--;render()">← Back</button>`:'<div></div>'}</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:11px;color:var(--text3)">${step} of 3</span>
+        ${step<3?`<button class="btn btn-primary" onclick="wizardNext()">Continue →</button>`:`<button class="btn btn-green" onclick="wizardFinish()">▶ Start Analysis</button>`}
       </div>
     </div>
-  </div>`;
+  </div></div>`;
 }
 
-function wizardNext() {
-  if(APP.wizardStep===1 && !wizardData.name.trim()) {
-    alert('Please enter your name.'); return;
-  }
-  if(APP.wizardStep===2 && wizardData.funds.length===0) {
-    alert('Please add at least one fund.'); return;
-  }
-  APP.wizardStep++;
-  render();
+function riskLabel(rt){
+  if(rt<=1)return'Very Conservative';if(rt<=3)return'Conservative';
+  if(rt<=4)return'Moderate-Conservative';if(rt===5)return'Balanced';
+  if(rt<=6)return'Moderate-Aggressive';if(rt<=7)return'Growth';
+  if(rt<=8)return'Aggressive';return'Very Aggressive';
+}
+function riskDescription(rt){
+  if(rt<=2)return'You prioritize protecting your money above all else. FundLens will recommend stable, low-volatility funds that aim to beat inflation without significant risk of loss.';
+  if(rt<=4)return'You want steady growth while limiting downside risk. FundLens will balance return potential with stability, avoiding the most volatile funds.';
+  if(rt===5)return'You want a true balance between growth and protection. FundLens will recommend a diversified allocation across both stable and higher-growth funds.';
+  if(rt<=7)return'You lean toward growth and are comfortable with some volatility in exchange for stronger potential returns. FundLens will concentrate allocation in the top-performing opportunities.';
+  return'You prioritize maximum growth and accept the possibility of significant short-term losses. FundLens will aggressively concentrate your allocation in the statistical outliers with the highest predicted ROI.';
 }
 
-function wizardFinish() {
-  const id = 'user_' + Date.now();
-  const profile = {
-    id, name:wizardData.name.trim()||'User',
-    risk:wizardData.risk, horizon:wizardData.horizon,
-    goals:wizardData.goals, contribution:wizardData.contribution, frequency:wizardData.frequency,
-    funds:wizardData.funds,
-    weights:DEFAULT_WEIGHTS, createdAt:new Date().toISOString()
-  };
-  APP.profiles.push(profile);
-  APP.activeProfile = id;
-  saveProfiles();
-  APP.wizard = false;
-  APP.funds = buildComposite(profile.funds, null, null, profile.weights);
-  APP.selectedFund = APP.funds[0]?.ticker;
-  render();
-  // Auto-start pipeline
-  setTimeout(runPipeline, 100);
+function wizardNext(){
+  if(APP.wizardStep===1&&!wizardData.name.trim()){alert('Please enter your name.');return}
+  if(APP.wizardStep===2&&wizardData.funds.length===0){alert('Please add at least one fund.');return}
+  APP.wizardStep++;render();
 }
-
-function addFund() {
-  const t = (wizardData.fundInput||'').trim().toUpperCase();
-  if(!t) return;
-  if(wizardData.funds.find(f=>f.ticker===t)) { wizardData.fundInput=''; render(); return; }
-  wizardData.funds.push({ticker:t, name:t});
-  wizardData.fundInput = '';
+function wizardFinish(){
+  const id='user_'+Date.now();
+  const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,horizon:wizardData.horizon,
+    goals:wizardData.goals,contribution:wizardData.contribution,frequency:wizardData.frequency,
+    funds:wizardData.funds,weights:DEFAULT_WEIGHTS,createdAt:new Date().toISOString()};
+  APP.profiles.push(profile);APP.activeProfile=id;saveProfiles();
+  APP.wizard=false;
+  APP.funds=wizardData.funds.map((f,i)=>({...f,...(SEED[f.ticker]||{composite:5,roi:0}),tier:getTierFromModZ(0),modZ:0,alert:ALERTS[f.ticker]||null}));
+  APP.selectedFund=APP.funds[0]?.ticker;
   render();
+  setTimeout(runPipeline,100);
 }
-
-function removeFund(ticker) {
-  wizardData.funds = wizardData.funds.filter(f=>f.ticker!==ticker);
-  render();
+function addFund(){
+  const t=(wizardData.fundInput||'').trim().toUpperCase();
+  if(!t)return;
+  if(wizardData.funds.find(f=>f.ticker===t)){wizardData.fundInput='';render();return}
+  wizardData.funds.push({ticker:t,name:t});wizardData.fundInput='';render();
 }
+function removeFund(ticker){wizardData.funds=wizardData.funds.filter(f=>f.ticker!==ticker);render()}
 
 // ═══════════════════════════════════════════════════════════════
 // RANK TAB
 // ═══════════════════════════════════════════════════════════════
-function renderRank() {
-  const sel = APP.funds.find(f=>f.ticker===APP.selectedFund) || APP.funds[0];
-  if(!sel) return '<div style="padding:40px;text-align:center;color:var(--text3)">No data. Click Run Analysis.</div>';
-  const tier = getTier(sel.composite);
+function renderRank(){
+  const sel=APP.funds.find(f=>f.ticker===APP.selectedFund)||APP.funds[0];
+  if(!sel)return'<div style="padding:40px;text-align:center;color:var(--text3)">No data. Click Run Analysis.</div>';
+  const tier=sel.tier||getTierFromModZ(0);
+  const fp=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
 
-  const rows = APP.funds.map((f,i) => {
-    const ft = getTier(f.composite);
-    const isSel = f.ticker===APP.selectedFund;
-    const barW = (f.composite/10)*100;
-    return `<tr class="${isSel?'selected':''}" onclick="APP.selectedFund='${f.ticker}';render()" style="cursor:pointer">
+  const rows=APP.funds.map((f,i)=>{
+    const ft=f.tier||getTierFromModZ(0);
+    const isSel=f.ticker===APP.selectedFund;
+    const isBreakaway=ft.label==='BREAKAWAY';
+    return`<tr class="${isSel?'selected':''}${isBreakaway?' breakaway-row':''}" onclick="APP.selectedFund='${f.ticker}';render()" style="cursor:pointer">
       <td style="color:var(--text3);font-size:11px;width:28px">${i+1}</td>
       <td style="min-width:64px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.ticker}</div>
         ${f.alert?`<div style="font-size:9px;color:var(--amber);margin-top:1px">⚠</div>`:''}
       </td>
       <td style="max-width:180px;color:var(--text2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</td>
-      <td style="min-width:120px">
+      <td style="min-width:130px">
         <div style="display:flex;align-items:center;gap:8px">
-          <div class="pbar-wrap" style="flex:1;height:5px"><div class="pbar-fill" style="width:${barW}%;background:${ft.color}"></div></div>
+          <div class="pbar-wrap" style="flex:1;height:5px"><div class="pbar-fill" style="width:${f.composite*10}%;background:${ft.color}"></div></div>
           <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${ft.color};width:32px;text-align:right">${f.composite.toFixed(1)}</span>
         </div>
       </td>
-      <td><span class="badge ${ft.cls}">${ft.label}</span></td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600" class="${f.roi>=0?'pos':'neg'}">${fp(f.roi)}</td>
-      <td style="color:var(--text2);font-size:11px">${f.holdings?`<span style="background:var(--green-bg);color:var(--green);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Holdings</span>`:''}</td>
+      <td><span class="badge ${ft.cls}">${ft.emoji} ${ft.label}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${f.modZ.toFixed(2)}</td>
+      <td class="${f.roi>=0?'pos':'neg'}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">${fp(f.roi)}</td>
+      <td style="color:var(--text2);font-size:11px">${f.holdings?`<span style="background:var(--green-bg);color:var(--green);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">${f.holdings.length}h</span>`:''}</td>
     </tr>`;
   }).join('');
 
-  // Radar SVG for selected fund
-  const dims = [
-    {key:'macro',label:'Macro',w:APP.pipeline?0:getWeights().macro},
+  const dims=[
+    {key:'worldThesisScore',label:'Thesis'},
     {key:'riskAdj',label:'Risk-Adj'},
-    {key:'manager',label:'Manager'},
     {key:'momentum',label:'Momentum'},
     {key:'returnScore',label:'Return'},
+    {key:'composite',label:'Overall'},
   ];
-  const radarSVG = buildRadarSVG(sel, dims, tier.color, 90, 90, 68);
+  const radarSVG=buildRadarSVG(sel,dims,tier.color,90,90,68);
+  
+  // Sector breakdown for selected fund
+  const sectorBreak=Object.entries(sel.sectorBreakdown||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  return `<div style="display:flex;height:calc(100vh - 160px);min-height:500px">
-    <!-- Left: table -->
+  return`<div style="display:flex;height:calc(100vh - 176px);min-height:500px">
     <div style="flex:1;overflow-y:auto;padding:20px 24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
-          <div class="label">Composite Rankings</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">${APP.funds.length} funds · click any row to inspect</div>
+          <div class="label">Holdings-Based Rankings — ${APP.funds.length} Funds</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Scores reflect sector outlook × holdings composition × momentum · Mod Z-Score outlier detection</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          ${[['var(--green)','T1 ≥7.0'],['var(--amber)','T2 5–7'],['var(--blue)','T3 3–5'],['var(--red)','T4 <3']].map(([c,l])=>`<div style="display:flex;align-items:center;gap:4px"><div style="width:9px;height:9px;border-radius:2px;background:${c}"></div><span style="font-size:10px;color:var(--text3)">${l}</span></div>`).join('')}
+          ${[['var(--green)','🏆 BREAKAWAY'],['var(--green)','⭐ STRONG'],['var(--amber)','✓ SOLID'],['var(--blue)','→ NEUTRAL'],['var(--red)','⚠ WEAK']].map(([c,l])=>`<span style="font-size:10px;color:${c}">${l}</span>`).join(' · ')}
         </div>
       </div>
       <table class="data-table">
-        <thead><tr>
-          <th>#</th><th>Ticker</th><th>Fund Name</th>
-          <th style="min-width:160px">Composite</th>
-          <th>Tier</th><th>Pred ROI</th><th>Data</th>
-        </tr></thead>
+        <thead><tr><th>#</th><th>Ticker</th><th>Fund Name</th><th style="min-width:160px">Composite</th><th>Tier</th><th>Mod Z</th><th>Pred ROI</th><th>Data</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      ${APP.funds.some(f=>f.tier?.label==='BREAKAWAY')?`<div style="margin-top:12px;padding:10px 14px;background:var(--green-bg);border:1px solid var(--green-bd);border-radius:8px;font-size:12px;color:var(--green)">🏆 BREAKAWAY funds are statistically exceptional — Modified Z-Score ≥ 2.0. These funds score significantly above their peers for the current 90-day environment.</div>`:'<div style="margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text3)">→ No fund has reached BREAKAWAY status this run — the top funds are closely clustered. Allocate across STRONG funds.</div>'}
     </div>
-    <!-- Right: fund detail -->
-    <div style="width:300px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--surface)">
+    <div style="width:310px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--surface)">
       <div style="padding:20px">
-        <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
           <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700">${sel.ticker}</div>
-          <span class="badge ${tier.cls}">${tier.label}</span>
+          <span class="badge ${tier.cls}">${tier.emoji} ${tier.label}</span>
         </div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:${sel.alert?'8px':'16px'}">${sel.name}</div>
         ${sel.alert?`<div style="padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;font-size:11px;color:var(--amber);margin-bottom:14px">⚠ ${sel.alert}</div>`:''}
-        <!-- Score -->
         <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
           <span class="score-xl" style="color:${tier.color}">${sel.composite.toFixed(2)}</span>
           <span style="font-size:12px;color:var(--text3)">/10</span>
         </div>
-        <div style="display:flex;gap:16px;margin-bottom:20px">
-          <div>
-            <div class="label" style="margin-bottom:2px">Pred ROI</div>
-            <div class="score-md ${sel.roi>=0?'pos':'neg'}">${fp(sel.roi)}</div>
-          </div>
-          <div>
-            <div class="label" style="margin-bottom:2px">Rank</div>
-            <div class="score-md">#${APP.funds.findIndex(f=>f.ticker===APP.selectedFund)+1}</div>
-          </div>
+        <div style="display:flex;gap:16px;margin-bottom:16px">
+          <div><div class="label" style="margin-bottom:2px">Pred ROI</div><div class="score-md ${sel.roi>=0?'pos':'neg'}">${(sel.roi>=0?'+':'')+sel.roi.toFixed(2)}%</div></div>
+          <div><div class="label" style="margin-bottom:2px">Rank</div><div class="score-md">#${APP.funds.findIndex(f=>f.ticker===APP.selectedFund)+1}</div></div>
+          <div><div class="label" style="margin-bottom:2px">Mod Z</div><div class="score-md">${sel.modZ.toFixed(2)}</div></div>
         </div>
-        <!-- Radar -->
-        <div class="radar-wrap" style="margin-bottom:16px">
-          <svg width="200" height="200" viewBox="0 0 180 180">${radarSVG}</svg>
-        </div>
-        <!-- Dims -->
-        ${[
-          ['Macro Alignment', sel.macro, getWeights().macro],
-          ['Momentum', sel.momentum, getWeights().momentum],
-          ['Manager Quality', sel.manager, getWeights().manager],
-          ['Risk-Adj (Sharpe)', sel.riskAdj, getWeights().riskAdj],
-          ['Return Score', sel.returnScore, getWeights().returnScore],
-        ].map(([lbl,val,wt])=>`<div style="margin-bottom:10px">
+        <div class="radar-wrap" style="margin-bottom:16px"><svg width="200" height="200" viewBox="0 0 180 180">${radarSVG}</svg></div>
+        ${[['World Thesis',sel.worldThesisScore||5,getWeights().worldThesis],['Momentum',sel.momentum||5,getWeights().momentum],['Risk-Adj (Sharpe)',sel.riskAdj||5,getWeights().riskAdj],['Return Score',sel.returnScore||5,getWeights().returnScore]].map(([lbl,val,wt])=>`<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
             <span style="font-size:11px;font-weight:600;color:var(--text2)">${lbl}</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${val.toFixed(1)}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${(val||0).toFixed(1)}</span>
           </div>
-          <div class="pbar-wrap"><div class="pbar-fill" style="width:${val*10}%;background:${tier.color}"></div></div>
+          <div class="pbar-wrap"><div class="pbar-fill" style="width:${(val||0)*10}%;background:${tier.color}"></div></div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">weight ${wt}%</div>
         </div>`).join('')}
-        ${sel.holdings?`<button class="btn btn-ghost" style="width:100%;margin-top:8px;font-size:12px" onclick="APP.showHoldingsFor='${sel.ticker}';APP.tab='holdings';render()">🔍 View ${sel.holdings.length} Holdings →</button>`:''}
+        ${sectorBreak.length?`<div style="margin-top:12px"><div class="label" style="margin-bottom:8px">Top Sector Exposures</div>
+          ${sectorBreak.map(([s,pct])=>{const sc=APP.sectorScores?.[s];const col=GICS_SECTORS[s]?.color||'var(--text3)';return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:7px;height:7px;border-radius:2px;background:${col}"></div>
+              <span style="font-size:11px;color:var(--text2)">${s}</span>
+              ${sc?`<span style="font-size:10px;color:${sc.score>=7?'var(--green)':sc.score<=4?'var(--red)':'var(--text3)'}">(${sc.score}/10)</span>`:''}
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">${pct.toFixed(1)}%</span>
+          </div>`}).join('')}
+        </div>`:''}
+        ${sel.holdings?`<button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="APP.showHoldingsFor='${sel.ticker}';APP.tab='holdings';render()">🔍 View ${sel.holdings.length} Holdings →</button>`:''}
       </div>
     </div>
   </div>`;
 }
 
-function buildRadarSVG(fund, dims, color, cx, cy, r) {
-  const N = dims.length, rd = d => d*Math.PI/180;
-  let svg = '';
-  // Grid
+function buildRadarSVG(fund,dims,color,cx,cy,r){
+  const N=dims.length,rd=d=>d*Math.PI/180;let svg='';
   [0.25,0.5,0.75,1].forEach(p=>{
-    const pts = dims.map((_,i)=>{
-      const a=-90+i*(360/N);
-      return `${cx+r*p*Math.cos(rd(a))},${cy+r*p*Math.sin(rd(a))}`;
-    }).join(' ');
-    svg += `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
+    const pts=dims.map((_,i)=>{const a=-90+i*(360/N);return`${cx+r*p*Math.cos(rd(a))},${cy+r*p*Math.sin(rd(a))}`}).join(' ');
+    svg+=`<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
   });
-  // Axes + labels
   dims.forEach((d,i)=>{
     const a=-90+i*(360/N);
-    const ax=cx+r*Math.cos(rd(a)), ay=cy+r*Math.sin(rd(a));
-    const lx=cx+(r+18)*Math.cos(rd(a)), ly=cy+(r+18)*Math.sin(rd(a));
-    svg += `<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="var(--border)" stroke-width="1"/>`;
-    svg += `<text x="${lx}" y="${ly}" fill="var(--text3)" font-size="9" font-family="Manrope,sans-serif" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`;
+    const ax=cx+r*Math.cos(rd(a)),ay=cy+r*Math.sin(rd(a));
+    const lx=cx+(r+18)*Math.cos(rd(a)),ly=cy+(r+18)*Math.sin(rd(a));
+    svg+=`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="var(--border)" stroke-width="1"/>`;
+    svg+=`<text x="${lx}" y="${ly}" fill="var(--text3)" font-size="9" font-family="Manrope,sans-serif" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`;
   });
-  // Data
-  const pts = dims.map((d,i)=>{
-    const a=-90+i*(360/N);
-    const v=Math.min(fund[d.key]||0,10)/10;
-    return `${cx+r*v*Math.cos(rd(a))},${cy+r*v*Math.sin(rd(a))}`;
-  }).join(' ');
-  svg += `<polygon points="${pts}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="1.5"/>`;
+  const pts=dims.map((d,i)=>{const a=-90+i*(360/N);const v=Math.min(fund[d.key]||0,10)/10;return`${cx+r*v*Math.cos(rd(a))},${cy+r*v*Math.sin(rd(a))}`}).join(' ');
+  svg+=`<polygon points="${pts}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="1.5"/>`;
   return svg;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PORTFOLIO TAB
+// THESIS TAB — Investment narrative + sector map
 // ═══════════════════════════════════════════════════════════════
-function renderPortfolio() {
-  const t1 = APP.funds.filter(f=>f.composite>=7);
-  const t4 = APP.funds.filter(f=>f.composite<3.5);
-  if(!t1.length) return `<div style="padding:48px;text-align:center;color:var(--text3)"><div style="font-size:32px;margin-bottom:12px">🔄</div><div style="font-size:14px;font-weight:600;color:var(--text2)">No Tier 1 funds yet</div><p style="font-size:12px;margin-top:6px">Run a live analysis to generate your portfolio allocation.</p></div>`;
-
-  const prof = activeProfile();
-  const CONTRIB = prof?.contribution ?? 250;
-  const FREQ = prof?.frequency ?? 'biweekly';
-  const tot = t1.reduce((s,f)=>s+f.composite,0);
-  const alloc = t1.map(f=>({...f, pct:+((f.composite/tot)*100).toFixed(1)}));
-  const wROI = alloc.reduce((s,f)=>s+(f.pct/100)*f.roi,0);
-
-  const COLORS = ['#059669','#1D4ED8','#D97706','#7C3AED','#DC2626','#0891B2','#65A30D'];
-  const donut = buildDonutSVG(alloc, 'pct', 90, 90, 72, 40, 'ticker', i=>COLORS[i%COLORS.length],
-    [{t:'+'+wROI.toFixed(1)+'%',c:'var(--text)',sz:13,w:700},{t:'Q2 PRED',c:'var(--text3)',sz:8}]);
-
-  const rows = alloc.map((f,i)=>{
-    const col=COLORS[i%COLORS.length];
-    return `<div style="margin-bottom:18px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="width:10px;height:10px;border-radius:2px;background:${col};flex-shrink:0"></div>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">${f.ticker}</span>
-          <span style="font-size:11px;color:var(--text2)">${f.name}</span>
+function renderThesis(){
+  const thesis=APP.investmentThesis;
+  const letter=APP.investorLetter;
+  
+  if(!thesis&&!letter)return`<div style="padding:48px;text-align:center;color:var(--text3)">
+    <div style="font-size:32px;margin-bottom:12px">📝</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text2)">No thesis generated yet</div>
+    <p style="font-size:12px;margin-top:8px">Click Run Analysis to generate your first live investment thesis.</p>
+  </div>`;
+  
+  const sectorScores=APP.sectorScores||{};
+  const sortedSectors=Object.entries(sectorScores).sort((a,b)=>b[1].score-a[1].score);
+  const winners=sortedSectors.filter(([,v])=>v.score>=7);
+  const neutral=sortedSectors.filter(([,v])=>v.score>=5&&v.score<7);
+  const losers=sortedSectors.filter(([,v])=>v.score<5);
+  
+  const prof=activeProfile();
+  const rt=prof?.risk||5;
+  
+  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <!-- Left: Investor letter + thesis -->
+      <div style="flex:2;min-width:320px">
+        <!-- Dominant theme banner -->
+        ${thesis?.dominantTheme?`<div style="background:linear-gradient(135deg,var(--text) 0%,#2d3748 100%);color:white;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1px;opacity:0.6;margin-bottom:4px">DOMINANT THEME · ${APP.lastRun||''}</div>
+          <div style="font-family:'Libre Baskerville',serif;font-size:20px;font-weight:700;margin-bottom:8px">${thesis.dominantTheme}</div>
+          <div style="display:flex;gap:12px;font-size:11px;opacity:0.8">
+            <span>Macro stance: <b>${thesis.macroStance||'—'}</b></span>
+            <span>Q outlook: <b>${thesis.quarterOutlook||'—'}</b></span>
+            <span>Risk profile: <b>${riskLabel(rt)}</b></span>
+          </div>
+        </div>`:''}
+        
+        <!-- Investor letter -->
+        ${letter?`<div class="card" style="margin-bottom:20px">
+          <div class="card-header"><div style="font-weight:700">Your Investment Recommendation</div><span style="font-size:11px;color:var(--text3)">${riskLabel(rt)} profile (${rt}/9)</span></div>
+          <div class="card-body">
+            <div class="thesis-prose">${letter.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
+          </div>
+        </div>`:''}
+        
+        <!-- Full technical thesis -->
+        ${thesis?.thesis?`<div class="card" style="margin-bottom:20px">
+          <div class="card-header"><div style="font-weight:700">Technical Investment Thesis</div><div style="font-size:11px;color:var(--text3)">AI-generated based on live FRED + GDELT data · ${APP.lastRun||''}</div></div>
+          <div class="card-body">
+            <div class="thesis-prose">${thesis.thesis.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
+          </div>
+        </div>`:''}
+        
+        <!-- Risk factors + catalysts -->
+        <div class="grid-2" style="margin-bottom:20px">
+          ${thesis?.riskFactors?.length?`<div class="card"><div class="card-header" style="padding:14px 18px"><div style="font-weight:700;font-size:12px;color:var(--red)">⚠ Risk Factors</div></div><div class="card-body" style="padding:12px 18px">
+            ${thesis.riskFactors.map(r=>`<div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--bg)">• ${r}</div>`).join('')}
+          </div></div>`:''}
+          ${thesis?.catalysts?.length?`<div class="card"><div class="card-header" style="padding:14px 18px"><div style="font-weight:700;font-size:12px;color:var(--green)">✦ Positive Catalysts</div></div><div class="card-body" style="padding:12px 18px">
+            ${thesis.catalysts.map(c=>`<div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--bg)">• ${c}</div>`).join('')}
+          </div></div>`:''}
         </div>
-        <div style="display:flex;gap:12px;align-items:baseline">
-          <span style="font-size:11px;color:var(--text3)">score ${f.composite.toFixed(2)}</span>
-          <span style="font-size:11px" class="${f.roi>=0?'pos':'neg'}">${fp(f.roi)}</span>
-          <span style="font-size:20px;font-weight:800;color:${col}">${f.pct.toFixed(1)}%</span>
+      </div>
+      
+      <!-- Right: Sector scorecard -->
+      <div style="width:260px;flex-shrink:0">
+        <div class="label" style="margin-bottom:12px">Sector Scorecard — 90 Day Outlook</div>
+        ${sortedSectors.map(([sector,data])=>{
+          const col=GICS_SECTORS[sector]?.color||'var(--text3)';
+          const cls=data.score>=7?'sector-win':data.score<=4?'sector-los':'sector-neu';
+          const barW=(data.score/10)*100;
+          return`<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="width:8px;height:8px;border-radius:2px;background:${col}"></div>
+                <span style="font-size:11px;font-weight:600;color:var(--text2)">${sector}</span>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${data.score>=7?'var(--green)':data.score<=4?'var(--red)':'var(--text)'}">${data.score}/10</span>
+            </div>
+            <div class="pbar-wrap" style="height:4px;margin-bottom:3px"><div class="pbar-fill" style="width:${barW}%;background:${col}"></div></div>
+            <div style="font-size:10px;color:var(--text3);line-height:1.4">${data.reason||''}</div>
+          </div>`;
+        }).join('')}
+        
+        <!-- Sector ETF legend -->
+        <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+          <div class="label" style="margin-bottom:8px">Sector ETF Proxies Used</div>
+          ${Object.entries(GICS_SECTORS).map(([s,d])=>`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:2px"><span>${s}</span><span style="font-family:'JetBrains Mono',monospace">${d.etf}</span></div>`).join('')}
         </div>
-      </div>
-      <div class="pbar-wrap"><div class="pbar-fill" style="width:${f.pct}%;background:${col}"></div></div>
-      <div style="display:flex;justify-content:space-between;margin-top:3px">
-        ${f.alert?`<span style="font-size:10px;color:var(--amber)">⚠ ${f.alert}</span>`:'<span></span>'}
-        <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.pct/100).toFixed(0)} of $${CONTRIB}</span>
-      </div>
-    </div>`;
-  }).join('');
-
-  return `<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 160px)">
-    <!-- Header stats -->
-    <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-      <div class="metric-card" style="flex:1;min-width:130px">
-        <div class="metric-label">Weighted Pred ROI</div>
-        <div class="metric-value pos">+${wROI.toFixed(2)}%</div>
-        <div class="metric-sub">Tier 1 portfolio</div>
-      </div>
-      <div class="metric-card" style="flex:1;min-width:130px">
-        <div class="metric-label">Est Gain / $${CONTRIB}</div>
-        <div class="metric-value">$${(CONTRIB*wROI/100).toFixed(2)}</div>
-        <div class="metric-sub">${FREQ} contribution</div>
-      </div>
-      <div class="metric-card" style="flex:1;min-width:130px">
-        <div class="metric-label">Tier 1 Funds</div>
-        <div class="metric-value">${t1.length}</div>
-        <div class="metric-sub">of ${APP.funds.length} total</div>
-      </div>
-      <div class="metric-card" style="flex:1;min-width:130px">
-        <div class="metric-label">Avoid (Tier 4)</div>
-        <div class="metric-value neg">${t4.length}</div>
-        <div class="metric-sub">zero contribution</div>
       </div>
     </div>
+    <div style="padding:8px;font-size:10px;color:var(--text3);text-align:center;margin-top:8px">ANALYTICAL FRAMEWORK ONLY · NOT FINANCIAL ADVICE · AI-GENERATED CONTENT · Sector scores based on FRED economic data, GDELT geopolitical intelligence, and sector ETF momentum</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PORTFOLIO TAB — Risk-tolerance allocation
+// ═══════════════════════════════════════════════════════════════
+function renderPortfolio(){
+  const prof=activeProfile();
+  const CONTRIB=prof?.contribution??250;
+  const FREQ=prof?.frequency??'biweekly';
+  const rt=prof?.risk||5;
+  const alloc=APP.allocationResult||buildAllocation(APP.funds,rt);
+  
+  if(!alloc.length)return`<div style="padding:48px;text-align:center;color:var(--text3)">
+    <div style="font-size:32px;margin-bottom:12px">🔄</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text2)">No allocation generated yet</div>
+    <p style="font-size:12px;margin-top:6px">Run a live analysis to generate your risk-adjusted portfolio allocation.</p>
+  </div>`;
+  
+  const avoidFunds=APP.funds.filter(f=>f.tier?.label==='WEAK'||f.tier?.label==='NEUTRAL');
+  const wROI=alloc.reduce((s,f)=>s+(f.allocationPct/100)*f.roi,0);
+  const COLORS=['#059669','#1D4ED8','#D97706','#7C3AED','#DC2626','#0891B2','#65A30D','#EC4899'];
+  
+  const donut=buildDonutSVG(alloc,'allocationPct',90,90,72,40,'ticker',i=>COLORS[i%COLORS.length],[
+    {t:(wROI>=0?'+':'')+wROI.toFixed(1)+'%',c:'var(--text)',sz:13,w:700},
+    {t:'PRED ROI',c:'var(--text3)',sz:8}
+  ]);
+  
+  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
+    <!-- Risk tolerance context -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div><div class="label">Risk Profile</div><div style="font-size:14px;font-weight:700;margin-top:2px">${rt}/9 — ${riskLabel(rt)}</div></div>
+      <div style="flex:1;min-width:200px;font-size:12px;color:var(--text2)">${riskDescription(rt)}</div>
+      <div><div class="label">Funds Selected</div><div style="font-size:14px;font-weight:700;margin-top:2px">${alloc.length} of ${APP.funds.length}</div></div>
+    </div>
+    
+    <!-- Metrics -->
+    <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Weighted ROI</div><div class="metric-value pos">+${wROI.toFixed(2)}%</div><div class="metric-sub">Predicted 90 days</div></div>
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Est. Gain / $${CONTRIB}</div><div class="metric-value">$${(CONTRIB*wROI/100).toFixed(2)}</div><div class="metric-sub">${FREQ} contribution</div></div>
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Top Fund</div><div class="metric-value" style="font-size:20px">${alloc[0]?.ticker||'—'}</div><div class="metric-sub">${(alloc[0]?.allocationPct||0).toFixed(1)}% · ${alloc[0]?.tier?.emoji||''} ${alloc[0]?.tier?.label||''}</div></div>
+      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Avoid (Weak)</div><div class="metric-value neg">${avoidFunds.length}</div><div class="metric-sub">zero contribution</div></div>
+    </div>
+    
     <div style="display:flex;gap:24px;flex-wrap:wrap">
       <!-- Allocation bars -->
       <div style="flex:2;min-width:280px">
-        <div class="label" style="margin-bottom:16px">Score-Proportional Allocation · Tier 1 Only</div>
-        ${rows}
-        <!-- Tier 4 avoid -->
-        ${t4.length?`<div style="margin-top:20px;padding:16px;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--radius)">
-          <div class="label" style="color:var(--red);margin-bottom:10px">Tier 4 — Consider Zero Contribution</div>
-          ${t4.map(f=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--red-bd);font-size:12px">
+        <div class="label" style="margin-bottom:16px">Score-Proportional Allocation · Adjusted for Risk Tolerance ${rt}/9</div>
+        ${alloc.map((f,i)=>{
+          const col=COLORS[i%COLORS.length];
+          const sc=APP.sectorScores;
+          const topSector=Object.entries(f.sectorBreakdown||{}).sort((a,b)=>b[1]-a[1])[0];
+          return`<div style="margin-bottom:18px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:10px;height:10px;border-radius:2px;background:${col}"></div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">${f.ticker}</span>
+                <span class="badge ${(f.tier||getTierFromModZ(0)).cls}">${(f.tier||{}).emoji||''} ${(f.tier||{}).label||''}</span>
+              </div>
+              <div style="display:flex;gap:12px;align-items:baseline">
+                <span style="font-size:11px" class="${f.roi>=0?'pos':'neg'}">${(f.roi>=0?'+':'')+f.roi.toFixed(2)}%</span>
+                <span style="font-size:20px;font-weight:800;color:${col}">${f.allocationPct.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div class="pbar-wrap"><div class="pbar-fill" style="width:${f.allocationPct}%;background:${col}"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px">
+              <span style="font-size:11px;color:var(--text3)">${f.name}${topSector?` · primary: ${topSector[0]} ${topSector[1].toFixed(0)}%`:''}</span>
+              <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.allocationPct/100).toFixed(0)} of $${CONTRIB}</span>
+            </div>
+            ${f.alert?`<div style="font-size:10px;color:var(--amber);margin-top:2px">⚠ ${f.alert}</div>`:''}
+          </div>`;
+        }).join('')}
+        
+        ${avoidFunds.length?`<div style="margin-top:16px;padding:14px;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:8px">
+          <div class="label" style="color:var(--red);margin-bottom:8px">Avoid — Zero Contribution Recommended</div>
+          ${avoidFunds.map(f=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--red-bd);font-size:12px">
             <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--red)">${f.ticker}</span>
             <span style="color:var(--text2)">${f.name}</span>
-            <span class="neg">${fp(f.roi)}</span>
+            <span class="neg">${(f.roi>=0?'+':'')+f.roi.toFixed(2)}%</span>
           </div>`).join('')}
         </div>`:''}
       </div>
+      
       <!-- Donut -->
       <div style="width:220px;flex-shrink:0">
-        <div class="label" style="margin-bottom:12px;text-align:center">Portfolio Breakdown</div>
+        <div class="label" style="margin-bottom:12px;text-align:center">Allocation Breakdown</div>
         <svg viewBox="0 0 180 180" width="200" height="200" style="display:block;margin:0 auto">${donut}</svg>
         <div style="margin-top:8px">
-          ${alloc.map((f,i)=>`<div style="display:flex;justify-content:space-between;margin-bottom:5px;align-items:center">
+          ${alloc.map((f,i)=>`<div style="display:flex;justify-content:space-between;margin-bottom:5px">
             <div style="display:flex;align-items:center;gap:5px">
               <div style="width:7px;height:7px;border-radius:2px;background:${COLORS[i%COLORS.length]}"></div>
               <span style="font-size:11px;font-family:'JetBrains Mono',monospace">${f.ticker}</span>
             </div>
             <div style="display:flex;gap:8px">
-              <span style="font-size:11px;font-weight:700;color:${COLORS[i%COLORS.length]}">${f.pct.toFixed(1)}%</span>
-              <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.pct/100).toFixed(0)}</span>
+              <span style="font-size:11px;font-weight:700;color:${COLORS[i%COLORS.length]}">${f.allocationPct.toFixed(1)}%</span>
+              <span style="font-size:11px;color:var(--text3)">$${(CONTRIB*f.allocationPct/100).toFixed(0)}</span>
             </div>
           </div>`).join('')}
         </div>
@@ -1179,20 +1499,20 @@ function renderPortfolio() {
   </div>`;
 }
 
-function buildDonutSVG(items, ak, cx, cy, r, inn, lk, cfn, cl) {
-  let a=-90, o='';
+function buildDonutSVG(items,ak,cx,cy,r,inn,lk,cfn,cl){
+  let a=-90,o='';
   items.forEach((it,i)=>{
-    const p=it[ak]/100, sa=a, ea=a+p*360, rd=d=>d*Math.PI/180;
-    const sx=cx+r*Math.cos(rd(sa)), sy=cy+r*Math.sin(rd(sa));
-    const ex=cx+r*Math.cos(rd(ea)), ey=cy+r*Math.sin(rd(ea));
-    const ix=cx+inn*Math.cos(rd(ea)), iy=cy+inn*Math.sin(rd(ea));
-    const jx=cx+inn*Math.cos(rd(sa)), jy=cy+inn*Math.sin(rd(sa));
+    const p=it[ak]/100,sa=a,ea=a+p*360,rd=d=>d*Math.PI/180;
+    const sx=cx+r*Math.cos(rd(sa)),sy=cy+r*Math.sin(rd(sa));
+    const ex=cx+r*Math.cos(rd(ea)),ey=cy+r*Math.sin(rd(ea));
+    const ix=cx+inn*Math.cos(rd(ea)),iy=cy+inn*Math.sin(rd(ea));
+    const jx=cx+inn*Math.cos(rd(sa)),jy=cy+inn*Math.sin(rd(sa));
     const la=p>0.5?1:0;
     const d=`M${sx} ${sy} A${r} ${r} 0 ${la} 1 ${ex} ${ey} L${ix} ${iy} A${inn} ${inn} 0 ${la} 0 ${jx} ${jy}Z`;
-    const mid=sa+p*180, lx=cx+(r+14)*Math.cos(rd(mid)), ly=cy+(r+14)*Math.sin(rd(mid));
+    const mid=sa+p*180,lx=cx+(r+14)*Math.cos(rd(mid)),ly=cy+(r+14)*Math.sin(rd(mid));
     const col=cfn(i);
     o+=`<path d="${d}" fill="${col}" opacity="0.85" stroke="white" stroke-width="2"/>`;
-    if(p>0.05) o+=`<text x="${lx}" y="${ly}" fill="${col}" font-size="8" font-family="JetBrains Mono,monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">${it[lk]}</text>`;
+    if(p>0.05)o+=`<text x="${lx}" y="${ly}" fill="${col}" font-size="8" font-family="JetBrains Mono,monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">${it[lk]}</text>`;
     a=ea;
   });
   o+=`<circle cx="${cx}" cy="${cy}" r="${inn-3}" fill="white"/>`;
@@ -1201,264 +1521,267 @@ function buildDonutSVG(items, ak, cx, cy, r, inn, lk, cfn, cl) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HOLDINGS TAB
+// HOLDINGS TAB (largely unchanged from v2)
 // ═══════════════════════════════════════════════════════════════
-function renderHoldings() {
-  const funds = APP.funds;
-  const withHoldings = funds.filter(f=>f.holdings?.length);
-  // Show ALL funds in tabs — including those without holdings — so the gap is visible
-  const selFund = funds.find(f=>f.ticker===APP.showHoldingsFor) || withHoldings[0] || funds[0];
-
-  if(!funds.length) return `<div style="padding:48px;text-align:center;color:var(--text3)">
-    <div style="font-size:32px;margin-bottom:12px">🏦</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text2)">No funds loaded</div>
-    <p style="font-size:12px;margin-top:8px;line-height:1.6">Run a live analysis to fetch fund holdings from SEC EDGAR N-PORT filings.</p>
-  </div>`;
-
-  const tabs = funds.map(f=>{
-    const hasH = !!f.holdings?.length;
-    return `<button class="tab${f.ticker===selFund?.ticker?' on':''}" onclick="APP.showHoldingsFor='${f.ticker}';render()" title="${hasH?f.holdings.length+' holdings':'No N-PORT filing available'}" style="${!hasH?'opacity:0.5':''}">${f.ticker}</button>`;
-  }).join('');
-
-  if(!selFund) return '';
-
-  // If this fund has no holdings, show a clear explanation instead of blank
-  if(!selFund.holdings?.length) {
-    const isMM = MONEY_MARKET_FUNDS.has(selFund.ticker);
-    return `<div style="height:calc(100vh - 160px);display:flex;flex-direction:column;overflow:hidden">
+function renderHoldings(){
+  const funds=APP.funds;
+  const withHoldings=funds.filter(f=>f.holdings?.length);
+  const selFund=funds.find(f=>f.ticker===APP.showHoldingsFor)||withHoldings[0]||funds[0];
+  if(!funds.length)return`<div style="padding:48px;text-align:center;color:var(--text3)"><div style="font-size:32px;margin-bottom:12px">🏦</div><p>No funds loaded. Run analysis first.</p></div>`;
+  
+  const tabs=funds.map(f=>`<button class="tab${f.ticker===selFund?.ticker?' on':''}" onclick="APP.showHoldingsFor='${f.ticker}';render()" style="${!f.holdings?.length?'opacity:0.5':''}">${f.ticker}</button>`).join('');
+  
+  if(!selFund?.holdings?.length){
+    const isMM=MONEY_MARKET_FUNDS.has(selFund?.ticker);
+    return`<div style="height:calc(100vh-176px);display:flex;flex-direction:column;overflow:hidden">
       <div style="display:flex;gap:2px;padding:0 24px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0">${tabs}</div>
       <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:48px">
         <div style="max-width:480px;text-align:center">
           <div style="font-size:40px;margin-bottom:16px">${isMM?'🏦':'📋'}</div>
-          <h3 style="font-family:'Libre Baskerville',serif;font-size:18px;margin-bottom:10px">${selFund.ticker} — ${selFund.name}</h3>
-          ${isMM ? `
-            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:left;margin-bottom:16px">
-              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">Why no holdings are shown</div>
-              <p style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:10px">
-                ${selFund.ticker} is a <b>money market fund</b>. Money market funds file <b>Form N-MFP</b> with the SEC — not N-PORT-P — so they don't appear in the standard portfolio holdings search.
-              </p>
-              <p style="font-size:12px;color:var(--text2);line-height:1.7">
-                By regulation, money market funds hold only high-quality, short-term instruments: US government securities, agency debt, Treasury bills, and repos. There are no surprises in the portfolio.
-              </p>
-            </div>
-            <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(selFund.name)}&type=N-MFP&dateb=&owner=include&count=10" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:12px">View N-MFP filings on EDGAR ↗</a>
-          ` : `
-            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:left;margin-bottom:16px">
-              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">Why no holdings are shown</div>
-              <p style="font-size:12px;color:var(--text2);line-height:1.7">
-                No recent N-PORT-P filing was found for ${selFund.ticker} on EDGAR. This can happen with very small funds (AUM &lt; $100M) that file on a different schedule, or funds whose SEC identifier doesn't match their ticker symbol.
-              </p>
-            </div>
-            <a href="https://www.sec.gov/cgi-bin/browse-edgar?company=${encodeURIComponent(selFund.name.split(' ').slice(0,3).join(' '))}&CIK=&type=NPORT-P&dateb=&owner=include&count=10&action=getcompany" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:12px">Search EDGAR manually ↗</a>
-          `}
+          <h3 style="font-family:'Libre Baskerville',serif;font-size:18px;margin-bottom:10px">${selFund?.ticker} — ${selFund?.name}</h3>
+          ${isMM?`<p style="font-size:12px;color:var(--text2);line-height:1.7">Money market fund — files Form N-MFP with the SEC, not N-PORT-P. Holdings are exclusively high-quality short-term instruments.</p>`:`<p style="font-size:12px;color:var(--text2);line-height:1.7">No recent N-PORT-P filing found for ${selFund?.ticker}. This can occur with small funds (AUM &lt;$100M) or when the SEC identifier doesn't match the ticker.</p>`}
         </div>
       </div>
     </div>`;
   }
-
-  const tier = getTier(selFund.composite);
-  const holdings = selFund.holdings || [];
-  const totalShown = holdings.reduce((s,h)=>s+h.pctVal,0);
-
-  // Asset class breakdown
-  const byClass = {};
-  holdings.forEach(h => {
-    const cat = h.assetCat||'OTHER';
-    byClass[cat] = (byClass[cat]||0) + h.pctVal;
-  });
-
-  const catLabels = {EC:'Equity',DBT:'Debt/Bond',RC:'Reg Fund',FWRD:'Forward',FUT:'Futures',OPT:'Options',OTH:'Other'};
-
-  const holdingRows = holdings.slice(0,50).map((h,i)=>{
-    const pct = h.pctVal;
-    const barW = Math.min(pct/Math.max(...holdings.map(h=>h.pctVal))*100, 100);
-    const isDebt = h.assetCat === 'DBT';
-
-    // Best public summary page per asset type:
-    // Equity with ticker      → Yahoo Finance quote page (US + international)
-    // Debt with CUSIP         → FINRA Bond Center detail page
-    // No ticker (equity/other)→ Yahoo Finance search
-    let holdingUrl, linkSite;
-    if(h.ticker) {
-      holdingUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(h.ticker)}`;
-      linkSite   = 'Yahoo Finance';
-    } else if(h.cusip && isDebt) {
-      holdingUrl = `https://finra-markets.morningstar.com/BondCenter/BondDetail.jsp?ticker=${encodeURIComponent(h.cusip)}`;
-      linkSite   = 'FINRA Bond Center';
-    } else {
-      holdingUrl = `https://finance.yahoo.com/lookup?s=${encodeURIComponent(h.name.split(' ').slice(0,4).join(' '))}`;
-      linkSite   = 'Yahoo Finance Search';
-    }
-
-    const tickerCell = h.ticker
-      ? `<a href="${holdingUrl}" target="_blank" rel="noopener" title="View on ${linkSite}"
-           style="display:inline-block;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);
-                  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);
-                  text-decoration:none;white-space:nowrap;letter-spacing:0.3px">
-           ${h.ticker}&nbsp;↗
-         </a>`
-      : `<a href="${holdingUrl}" target="_blank" rel="noopener" title="Search on ${linkSite}"
-           style="display:inline-block;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);
-                  font-size:10px;color:var(--text3);text-decoration:none;white-space:nowrap">
-           search&nbsp;↗
-         </a>`;
-
-    return `<tr>
+  
+  const tier=selFund.tier||getTierFromModZ(0);
+  const holdings=selFund.holdings||[];
+  const catLabels={EC:'Equity',DBT:'Debt/Bond',RC:'Reg Fund',FWRD:'Forward',FUT:'Futures',OPT:'Options',OTH:'Other'};
+  const byClass={};holdings.forEach(h=>{const cat=h.assetCat||'OTHER';byClass[cat]=(byClass[cat]||0)+h.pctVal});
+  
+  const holdingRows=holdings.slice(0,50).map((h,i)=>{
+    const pct=h.pctVal;
+    const barW=Math.min(pct/Math.max(...holdings.map(h=>h.pctVal))*100,100);
+    const sector=APP.sectorMappingCache[h.ticker]||h.sector||null;
+    const sectorScore=sector&&APP.sectorScores?APP.sectorScores[sector]?.score:null;
+    const holdingUrl=h.ticker?`https://finance.yahoo.com/quote/${encodeURIComponent(h.ticker)}`:`https://finance.yahoo.com/lookup?s=${encodeURIComponent(h.name.split(' ').slice(0,4).join(' '))}`;
+    return`<tr>
       <td style="color:var(--text3);font-size:10px;width:30px">${i+1}</td>
-      <td style="width:110px">${tickerCell}</td>
-      <td style="max-width:200px">
-        <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${h.name}">${h.name}</div>
-      </td>
-      <td style="font-size:10px;color:var(--text3);white-space:nowrap">${catLabels[h.assetCat]||h.assetCat||'—'}</td>
-      <td style="white-space:nowrap">
-        <div style="display:flex;align-items:center;gap:6px">
-          <div class="pbar-wrap" style="width:60px;height:4px"><div class="pbar-fill" style="width:${barW}%;background:${tier.color}"></div></div>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">${pct.toFixed(2)}%</span>
-        </div>
-      </td>
-      <td style="font-size:10px;color:var(--text3)">${h.country||'—'}</td>
+      <td style="width:110px"><a href="${holdingUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);text-decoration:none">${h.ticker||'search'} ↗</a></td>
+      <td style="max-width:180px"><div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${h.name}">${h.name}</div></td>
+      <td style="font-size:10px;color:var(--text3)">${sector||catLabels[h.assetCat]||h.assetCat||'—'}</td>
+      ${sectorScore!==null?`<td style="font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${sectorScore>=7?'var(--green)':sectorScore<=4?'var(--red)':'var(--text3)'}">${sectorScore}/10</td>`:`<td style="font-size:10px;color:var(--text3)">—</td>`}
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="pbar-wrap" style="width:60px;height:4px"><div class="pbar-fill" style="width:${barW}%;background:${tier.color}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">${pct.toFixed(2)}%</span></div></td>
     </tr>`;
   }).join('');
-
-  return `<div style="height:calc(100vh - 160px);display:flex;flex-direction:column;overflow:hidden">
-    <!-- Fund selector tabs -->
+  
+  return`<div style="height:calc(100vh - 176px);display:flex;flex-direction:column;overflow:hidden">
     <div style="display:flex;gap:2px;padding:0 24px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0">${tabs}</div>
-    <!-- Content -->
     <div style="flex:1;overflow-y:auto;padding:20px 24px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
         <div>
           <h2 style="font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:4px">${selFund.name}</h2>
-          <div style="font-size:12px;color:var(--text3)">${holdings.length} holdings from SEC EDGAR N-PORT · ${APP.holdingsCache[selFund.ticker]?.fetchedAt ? 'Fetched '+new Date(APP.holdingsCache[selFund.ticker].fetchedAt).toLocaleDateString() : 'Live data'}</div>
+          <div style="font-size:12px;color:var(--text3)">${holdings.length} holdings from SEC EDGAR N-PORT · ${APP.holdingsCache[selFund.ticker]?.fetchedAt?'Fetched '+new Date(APP.holdingsCache[selFund.ticker].fetchedAt).toLocaleDateString():''}</div>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          ${Object.entries(byClass).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([cat,pct])=>`<div style="text-align:center;padding:8px 12px;background:var(--surface2);border-radius:7px;border:1px solid var(--border)">
-            <div style="font-size:10px;color:var(--text3)">${catLabels[cat]||cat}</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700">${pct.toFixed(1)}%</div>
-          </div>`).join('')}
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${Object.entries(byClass).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([cat,pct])=>`<div style="text-align:center;padding:8px 12px;background:var(--surface2);border-radius:7px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3)">${catLabels[cat]||cat}</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700">${pct.toFixed(1)}%</div></div>`).join('')}
         </div>
       </div>
       <table class="data-table">
-        <thead><tr>
-          <th>#</th><th>Ticker</th><th>Name</th><th>Type</th><th>Fund Share</th><th>Country</th>
-        </tr></thead>
+        <thead><tr><th>#</th><th>Ticker</th><th>Name</th><th>Sector / Type</th><th>Sector Score</th><th>Fund Share</th></tr></thead>
         <tbody>${holdingRows}</tbody>
       </table>
       ${holdings.length>50?`<div style="text-align:center;padding:12px;font-size:12px;color:var(--text3)">Showing top 50 of ${holdings.length} holdings</div>`:''}
-      <div style="text-align:center;padding:8px;font-size:11px;color:var(--text3)">
-        ${totalShown.toFixed(1)}% of fund covered by ${holdings.length} holdings shown
-        · <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(selFund.name)}&type=N-PORT&dateb=&owner=include&count=10" target="_blank" rel="noopener" style="color:var(--accent)">View on EDGAR ↗</a>
-      </div>
     </div>
   </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MATRIX TAB
+// SCORE MATRIX TAB
 // ═══════════════════════════════════════════════════════════════
-function renderMatrix() {
-  const rows = APP.funds.map((f,i)=>{
-    const t = getTier(f.composite);
-    const isSel = f.ticker===APP.selectedFund;
-    return `<tr class="${isSel?'selected':''}" onclick="APP.selectedFund='${f.ticker}';APP.tab='rank';render()" style="cursor:pointer">
+function renderMatrix(){
+  const rows=APP.funds.map((f,i)=>{
+    const t=f.tier||getTierFromModZ(0);
+    return`<tr onclick="APP.selectedFund='${f.ticker}';APP.tab='rank';render()" style="cursor:pointer">
       <td style="color:var(--text3)">${i+1}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${t.color}">${f.ticker}</td>
-      <td style="color:var(--text2);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</td>
-      ${[f.macro,f.riskAdj,f.manager,f.momentum,f.returnScore].map(v=>`<td>
-        <div style="display:flex;align-items:center;gap:5px">
-          <div class="pbar-wrap" style="width:32px;height:3px"><div class="pbar-fill" style="width:${v*10}%;background:${t.color}"></div></div>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:11px">${v.toFixed(1)}</span>
-        </div>
-      </td>`).join('')}
+      <td style="color:var(--text2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</td>
+      ${[f.worldThesisScore||5,f.momentum||5,f.riskAdj||5,f.returnScore||5].map(v=>`<td><div style="display:flex;align-items:center;gap:5px"><div class="pbar-wrap" style="width:32px;height:3px"><div class="pbar-fill" style="width:${v*10}%;background:${t.color}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px">${(v||0).toFixed(1)}</span></div></td>`).join('')}
       <td style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${t.color}">${f.composite.toFixed(2)}</td>
-      <td class="${f.roi>=0?'pos':'neg'}" style="font-family:'JetBrains Mono',monospace;font-weight:600">${fp(f.roi)}</td>
-      <td><span class="badge ${t.cls}">${t.label}</span></td>
+      <td class="${f.roi>=0?'pos':'neg'}" style="font-family:'JetBrains Mono',monospace;font-weight:600">${(f.roi>=0?'+':'')+f.roi.toFixed(2)}%</td>
+      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${f.modZ.toFixed(2)}</span></td>
+      <td><span class="badge ${t.cls}">${t.emoji} ${t.label}</span></td>
     </tr>`;
   }).join('');
-
-  return `<div style="padding:20px 24px;overflow:auto;max-height:calc(100vh - 160px)">
-    <div class="label" style="margin-bottom:12px">Full Score Matrix · ${APP.funds.length} Funds · ${APP.source.toUpperCase()} Data</div>
+  
+  return`<div style="padding:20px 24px;overflow:auto;max-height:calc(100vh - 176px)">
+    <div class="label" style="margin-bottom:12px">Full Score Matrix · ${APP.funds.length} Funds · ${APP.source.toUpperCase()} Data · Modified Z-Score Outlier Analysis</div>
     <table class="data-table">
-      <thead><tr>
-        <th>#</th><th>Ticker</th><th>Fund Name</th>
-        <th>Macro</th><th>Risk-Adj</th><th>Manager</th><th>Momentum</th><th>Return</th>
-        <th>Composite</th><th>Pred ROI</th><th>Tier</th>
-      </tr></thead>
+      <thead><tr><th>#</th><th>Ticker</th><th>Fund Name</th><th>World Thesis</th><th>Momentum</th><th>Risk-Adj</th><th>Return</th><th>Composite</th><th>Pred ROI</th><th>Mod Z</th><th>Tier</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
+      <b>Modified Z-Score</b> = 0.6745 × (score − median) / MAD. Values ≥2.0 = BREAKAWAY (statistically exceptional), ≥1.2 = STRONG, ≥0.3 = SOLID, ≥−0.5 = NEUTRAL, &lt;−0.5 = WEAK.
+      This method is robust to small samples (n=20–25) unlike standard z-score, which can be distorted by outliers in the computation.
+    </div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HISTORY TAB — Predicted vs Actual ROI tracking
+// ═══════════════════════════════════════════════════════════════
+async function renderHistory(){
+  const prof=activeProfile();
+  if(!prof)return'<div style="padding:40px;text-align:center;color:var(--text3)">No profile active.</div>';
+  
+  const cycles=await supa.getPredictionCycles(prof.id,12);
+  if(!cycles?.length)return`<div style="padding:48px;text-align:center;color:var(--text3)">
+    <div style="font-size:32px;margin-bottom:12px">📅</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text2)">No prediction history yet</div>
+    <p style="font-size:12px;margin-top:8px;line-height:1.6">Each time you run an analysis, FundLens records its predictions here. After 90 days, actual prices are fetched automatically to measure prediction accuracy.</p>
+  </div>`;
+  
+  // Calculate information coefficient across closed cycles
+  const closedCycles=cycles.filter(c=>new Date(c.closes_at)<new Date());
+  
+  const cards=await Promise.all(cycles.map(async cycle=>{
+    const preds=await supa.getFundPredictions(cycle.id);
+    const date=new Date(cycle.created_at);
+    const isClosed=new Date(cycle.closes_at)<new Date();
+    const daysLeft=isClosed?0:Math.ceil((new Date(cycle.closes_at)-new Date())/86400000);
+    
+    // Top 3 predicted
+    const top3=(preds||[]).sort((a,b)=>b.predicted_composite-a.predicted_composite).slice(0,3);
+    
+    // Accuracy metrics (if closed)
+    let accuracyHtml='';
+    if(isClosed&&preds?.some(p=>p.actual_roi!==null)){
+      const closed=preds.filter(p=>p.actual_roi!==null);
+      const mae=closed.reduce((s,p)=>s+Math.abs(p.predicted_roi-p.actual_roi),0)/closed.length;
+      const directional=closed.filter(p=>(p.predicted_roi>=0)===(p.actual_roi>=0)).length/closed.length;
+      
+      // Spearman IC (simplified rank correlation)
+      const n=closed.length;
+      let ic=null;
+      if(n>=4){
+        const predRanks=rankArray(closed.map(p=>p.predicted_roi));
+        const actualRanks=rankArray(closed.map(p=>p.actual_roi));
+        const d2=predRanks.reduce((s,pr,i)=>s+Math.pow(pr-actualRanks[i],2),0);
+        ic=+(1-(6*d2)/(n*(n*n-1))).toFixed(3);
+      }
+      
+      const icClass=ic===null?'':ic>=0.1?'ic-good':ic>=0?'ic-ok':'ic-bad';
+      accuracyHtml=`<div style="margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:7px;font-size:11px;display:flex;gap:16px;flex-wrap:wrap">
+        <div><div class="label">Directional Accuracy</div><div style="font-weight:700;color:${directional>=0.6?'var(--green)':directional>=0.5?'var(--amber)':'var(--red)'}">${(directional*100).toFixed(0)}%</div></div>
+        <div><div class="label">MAE (Avg Error)</div><div style="font-weight:700">${mae.toFixed(2)}pp</div></div>
+        ${ic!==null?`<div><div class="label">Spearman IC</div><div class="score-md ${icClass}">${ic.toFixed(3)}</div></div>`:''}
+        <div style="font-size:10px;color:var(--text3);align-self:center">${closed.length} funds with actual data · IC >0.05 = effective model</div>
+      </div>`;
+      
+      // Show predicted vs actual for each fund
+      const fundRows=closed.sort((a,b)=>b.predicted_composite-a.predicted_composite).map(p=>{
+        const err=p.actual_roi-p.predicted_roi;
+        return`<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--bg);font-size:11px;align-items:center">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;width:50px">${p.fund_ticker}</span>
+          <span style="color:var(--text3);width:80px">pred: <b class="${p.predicted_roi>=0?'pos':'neg'}">${(p.predicted_roi>=0?'+':'')+p.predicted_roi.toFixed(1)}%</b></span>
+          <span style="color:var(--text3);width:80px">actual: <b class="${p.actual_roi>=0?'pos':'neg'}">${(p.actual_roi>=0?'+':'')+p.actual_roi.toFixed(1)}%</b></span>
+          <span style="color:${Math.abs(err)<2?'var(--green)':Math.abs(err)<5?'var(--amber)':'var(--red)'}">err: ${err>=0?'+':''}${err.toFixed(1)}pp</span>
+          <span class="badge ${p.predicted_tier==='BREAKAWAY'?'t1':p.predicted_tier==='STRONG'?'t1':p.predicted_tier==='SOLID'?'t2':p.predicted_tier==='NEUTRAL'?'t3':'t4'}" style="font-size:9px">${p.predicted_tier||'?'}</span>
+        </div>`;
+      }).join('');
+      
+      if(closed.length>0)accuracyHtml+=`<div style="margin-top:8px">${fundRows}</div>`;
+    }
+    
+    return`<div class="card fade-in" style="margin-bottom:16px">
+      <div class="card-header">
+        <div>
+          <div style="font-weight:700">${date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+          <div style="font-size:11px;color:var(--text3)">${date.toLocaleTimeString()} · ${isClosed?'Closed — accuracy computed':`${daysLeft} days until close`}</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          ${top3.map(f=>`<div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.fund_ticker}</div><div style="font-size:10px;color:var(--text3)">${(f.predicted_composite||0).toFixed(2)} · ${f.predicted_tier||'?'}</div></div>`).join('')}
+        </div>
+      </div>
+      ${cycle.investment_thesis?`<div style="padding:12px 18px;font-size:11px;color:var(--text2);line-height:1.6;border-bottom:1px solid var(--border)">${cycle.investment_thesis.slice(0,280)}…</div>`:''}
+      ${cycle.dominant_theme?`<div style="padding:8px 18px;font-size:11px;background:var(--surface2)"><b>Theme:</b> ${cycle.dominant_theme} · <b>Risk profile:</b> ${riskLabel(cycle.risk_tolerance||5)}</div>`:''}
+      ${accuracyHtml?`<div style="padding:12px 18px">${accuracyHtml}</div>`:'<div style="padding:12px 18px;font-size:11px;color:var(--text3)">Actual ROI will be automatically calculated when this cycle closes in ${daysLeft} days.</div>'}
+    </div>`;
+  }));
+  
+  // Overall model accuracy summary
+  let modelSummaryHtml='';
+  if(closedCycles.length>=2){
+    modelSummaryHtml=`<div class="card" style="margin-bottom:20px;background:var(--surface2)">
+      <div class="card-header"><div style="font-weight:700">Model Accuracy Summary</div><div style="font-size:11px;color:var(--text3)">${closedCycles.length} closed prediction cycles</div></div>
+      <div class="card-body"><p style="font-size:12px;color:var(--text2)">Accuracy metrics are calculated per-cycle above. Track Information Coefficient (IC) across cycles — a consistent IC of 0.05–0.10 indicates an effective ranking model. As more cycles close, FundLens will use this data to recalibrate factor weights (Bayesian updating begins after 4 completed cycles).</p></div>
+    </div>`;
+  }
+  
+  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
+    ${modelSummaryHtml}
+    <div class="label" style="margin-bottom:16px">Prediction History · ${cycles.length} analysis runs</div>
+    ${cards.join('')}
+  </div>`;
+}
+
+function rankArray(arr){
+  const sorted=[...arr].map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v);
+  const ranks=new Array(arr.length);
+  sorted.forEach((item,rank)=>ranks[item.i]=rank+1);
+  return ranks;
 }
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS TAB
 // ═══════════════════════════════════════════════════════════════
-function renderSettings() {
-  const prof = activeProfile();
-  if(!prof) return '';
-  const W = prof.weights || DEFAULT_WEIGHTS;
-  const totalW = Object.values(W).reduce((s,v)=>s+v,0);
-
-  return `<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 160px)">
-
+function renderSettings(){
+  const prof=activeProfile();
+  if(!prof)return'';
+  const W=prof.weights||DEFAULT_WEIGHTS;
+  const totalW=Object.values(W).reduce((s,v)=>s+v,0);
+  
+  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
     <div class="grid-2" style="gap:20px;align-items:start">
       <!-- Profile -->
       <div class="card">
-        <div class="card-header">
-          <div style="font-weight:700">Investor Profile</div>
-        </div>
+        <div class="card-header"><div style="font-weight:700">Investor Profile</div></div>
         <div class="card-body">
-          <div style="margin-bottom:14px">
-            <label class="label" style="display:block;margin-bottom:5px">Name</label>
-            <input type="text" value="${prof.name}" onchange="updateProfile('name',this.value)">
-          </div>
-          <div style="margin-bottom:14px">
-            <label class="label" style="display:block;margin-bottom:5px">Risk Tolerance: <span id="sRisk" style="font-family:'JetBrains Mono',monospace">${prof.risk}/10</span></label>
-            <input type="range" min="1" max="10" value="${prof.risk}" oninput="updateProfile('risk',parseInt(this.value));document.getElementById('sRisk').textContent=this.value+'/10'" style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:14px">
-            <label class="label" style="display:block;margin-bottom:5px">Horizon (years)</label>
-            <input type="number" value="${prof.horizon}" min="1" max="40" onchange="updateProfile('horizon',parseInt(this.value))">
-          </div>
-          <div>
-            <label class="label" style="display:block;margin-bottom:5px">Goals</label>
-            <textarea rows="3" style="resize:none" onchange="updateProfile('goals',this.value)">${prof.goals||''}</textarea>
-          </div>
-          <div style="display:flex;gap:10px;margin-top:14px">
-            <div style="flex:1">
-              <label class="label" style="display:block;margin-bottom:5px">Contribution Amount</label>
-              <div style="position:relative">
-                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">$</span>
-                <input type="number" value="${prof.contribution??250}" min="0" onchange="updateProfile('contribution',parseFloat(this.value)||0)" style="padding-left:22px">
-              </div>
-            </div>
-            <div style="flex:1">
-              <label class="label" style="display:block;margin-bottom:5px">Frequency</label>
-              <select onchange="updateProfile('frequency',this.value)">
-                <option value="weekly" ${(prof.frequency||'biweekly')==='weekly'?'selected':''}>Weekly</option>
-                <option value="biweekly" ${(prof.frequency||'biweekly')==='biweekly'?'selected':''}>Bi-weekly</option>
-                <option value="semimonthly" ${(prof.frequency||'biweekly')==='semimonthly'?'selected':''}>Semi-monthly</option>
-                <option value="monthly" ${(prof.frequency||'biweekly')==='monthly'?'selected':''}>Monthly</option>
-              </select>
-            </div>
+          <label class="label" style="display:block;margin-bottom:5px">Name</label>
+          <input type="text" value="${prof.name}" onchange="updateProfile('name',this.value)" style="margin-bottom:14px">
+          <label class="label" style="display:block;margin-bottom:5px">Risk Tolerance: <span id="sRisk" style="font-family:'JetBrains Mono',monospace">${prof.risk}/9 — ${riskLabel(prof.risk)}</span></label>
+          <input type="range" min="1" max="9" value="${prof.risk}" oninput="updateProfile('risk',parseInt(this.value));document.getElementById('sRisk').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:4px;accent-color:var(--accent)">
+          <div style="background:var(--surface2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);margin-bottom:14px">${riskDescription(prof.risk)}</div>
+          <label class="label" style="display:block;margin-bottom:5px">Horizon (years)</label>
+          <input type="number" value="${prof.horizon}" min="1" max="40" onchange="updateProfile('horizon',parseInt(this.value))" style="margin-bottom:14px">
+          <label class="label" style="display:block;margin-bottom:5px">Goals</label>
+          <textarea rows="3" style="resize:none;margin-bottom:14px" onchange="updateProfile('goals',this.value)">${prof.goals||''}</textarea>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution ($)</label>
+              <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
+              <input type="number" value="${prof.contribution??250}" min="0" onchange="updateProfile('contribution',parseFloat(this.value)||0)" style="padding-left:22px"></div></div>
+            <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Frequency</label>
+              <select onchange="updateProfile('frequency',this.value)">${['weekly','biweekly','semimonthly','monthly'].map(f=>`<option value="${f}" ${(prof.frequency||'biweekly')===f?'selected':''}>${f}</option>`).join('')}</select></div>
           </div>
         </div>
       </div>
+      
       <!-- Scoring weights -->
       <div class="card">
         <div class="card-header">
-          <div style="font-weight:700">Scoring Weights</div>
+          <div style="font-weight:700">Scoring Factor Weights</div>
           <div style="font-size:12px;color:${totalW===100?'var(--green)':'var(--red)'};font-family:'JetBrains Mono',monospace">${totalW}% ${totalW===100?'✓':'≠100'}</div>
         </div>
         <div class="card-body">
-          ${[['macro','Macro Alignment'],['momentum','YTD Momentum'],['manager','Manager Quality'],['riskAdj','Risk-Adj (Sharpe)'],['returnScore','Predicted Return']].map(([k,lbl])=>`<div style="margin-bottom:14px">
+          ${[
+            ['worldThesis','World Thesis Score','Sector scores × holdings weights — the primary intelligence signal'],
+            ['momentum','Price Momentum','Fund price trend (63-day) — trend persistence signal'],
+            ['riskAdj','Risk-Adj (Sharpe)','Return quality relative to volatility — quality filter'],
+            ['managerQuality','Manager Quality','Fund management stability — qualitative signal'],
+            ['returnScore','Predicted Return','Normalized 90-day ROI prediction — output signal'],
+          ].map(([k,lbl,desc])=>`<div style="margin-bottom:16px">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px">
               <label class="label">${lbl}</label>
-              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700" id="w_${k}">${W[k]}%</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700" id="w_${k}">${W[k]||0}%</span>
             </div>
-            <input type="range" min="0" max="60" value="${W[k]}" oninput="updateWeight('${k}',parseInt(this.value))" style="width:100%;accent-color:var(--accent)">
+            <input type="range" min="0" max="70" value="${W[k]||0}" oninput="updateWeight('${k}',parseInt(this.value))" style="width:100%;accent-color:var(--accent)">
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">${desc}</div>
           </div>`).join('')}
-          <p class="note">Weights must sum to 100%. Changes apply on next analysis run.</p>
+          <p class="note" style="margin-top:8px">Weights must sum to 100%. Changing weights will update the thesis and allocation on your next run. The World Thesis weight is the most impactful — it directly reflects current sector-level intelligence.</p>
         </div>
       </div>
+      
       <!-- Fund universe -->
       <div class="card" style="grid-column:1/-1">
         <div class="card-header">
@@ -1468,273 +1791,268 @@ function renderSettings() {
             <button class="btn btn-primary" onclick="addFundToProfile()">Add</button>
           </div>
         </div>
+        <div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:7px">
+          ${prof.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFundFromProfile('${f.ticker}')">×</button></span>`).join('')}
+        </div></div>
+      </div>
+      
+      <!-- API keys info -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header"><div style="font-weight:700">Optional API Keys</div><div style="font-size:11px;color:var(--text3)">Set via Railway environment variables (Raw Editor)</div></div>
         <div class="card-body">
-          <div style="display:flex;flex-wrap:wrap;gap:7px">
-            ${prof.funds.map(f=>`<span class="fund-chip">
-              <span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span>
-              <button onclick="removeFundFromProfile('${f.ticker}')">×</button>
-            </span>`).join('')}
+          <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px">Two optional free API keys improve data quality. Both have graceful fallbacks if not set.</div>
+          <div class="grid-2" style="gap:12px">
+            <div style="padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:12px;margin-bottom:4px">FRED_KEY <span style="font-size:10px;color:var(--green)">FREE</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Federal Reserve economic data (765k+ series). Provides structured macro indicators: rates, spreads, PMI, commodities. Without this key, Claude uses web search for macro data.</div>
+              <a href="https://fredaccount.stlouisfed.org/login/secure/" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Register at stlouisfed.org ↗</a>
+            </div>
+            <div style="padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:12px;margin-bottom:4px">FMP_KEY <span style="font-size:10px;color:var(--green)">FREE (250/day)</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Financial Modeling Prep — maps holding tickers to GICS sectors. Without this key, Claude classifies sectors from company names (still accurate for most holdings).</div>
+              <a href="https://financialmodelingprep.com/developer/docs" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Register at FMP ↗</a>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <!-- Danger zone -->
+    
     <div style="margin-top:20px;padding:16px;border:1px solid var(--red-bd);border-radius:var(--radius);background:var(--red-bg)">
       <div style="font-weight:700;color:var(--red);margin-bottom:8px;font-size:13px">Reset</div>
-      <button class="btn btn-danger" onclick="if(confirm('Reset all data?')){LS.del('profiles');location.reload()}">Clear All Data & Restart</button>
+      <button class="btn btn-danger" onclick="if(confirm('Clear all data and restart?')){LS.del('profiles');location.reload()}">Clear All Data & Restart</button>
     </div>
   </div>`;
 }
 
-function updateProfile(key, val) {
-  const prof = activeProfile();
-  if(!prof) return;
-  prof[key] = val;
-  saveProfiles();
+function updateProfile(key,val){const prof=activeProfile();if(!prof)return;prof[key]=val;saveProfiles()}
+function updateWeight(key,val){
+  const prof=activeProfile();if(!prof)return;
+  prof.weights=prof.weights||{...DEFAULT_WEIGHTS};prof.weights[key]=val;saveProfiles();
+  const tot=Object.values(prof.weights).reduce((s,v)=>s+v,0);
+  document.querySelectorAll('[id^="w_"]').forEach(el=>{const k=el.id.replace('w_','');if(prof.weights[k]!==undefined)el.textContent=prof.weights[k]+'%'});
 }
-
-function updateWeight(key, val) {
-  const prof = activeProfile();
-  if(!prof) return;
-  prof.weights = prof.weights || {...DEFAULT_WEIGHTS};
-  prof.weights[key] = val;
-  saveProfiles();
-  const tot = Object.values(prof.weights).reduce((s,v)=>s+v,0);
-  document.querySelectorAll('[id^="w_"]').forEach(el=>{
-    const k = el.id.replace('w_','');
-    if(prof.weights[k]!==undefined) el.textContent=prof.weights[k]+'%';
-  });
-  const badge = document.querySelector('.weight-total');
-  if(badge) badge.textContent=tot+'%';
+function addFundToProfile(){
+  const inp=document.getElementById('addFundInput');
+  const t=(inp?.value||'').trim().toUpperCase();if(!t)return;
+  const prof=activeProfile();if(!prof||prof.funds.find(f=>f.ticker===t))return;
+  prof.funds.push({ticker:t,name:t});saveProfiles();if(inp)inp.value='';render();
 }
-
-function addFundToProfile() {
-  const inp = document.getElementById('addFundInput');
-  const t = (inp?.value||'').trim().toUpperCase();
-  if(!t) return;
-  const prof = activeProfile();
-  if(!prof || prof.funds.find(f=>f.ticker===t)) return;
-  prof.funds.push({ticker:t, name:t});
-  saveProfiles();
-  if(inp) inp.value='';
-  render();
-}
-
-function removeFundFromProfile(ticker) {
-  const prof = activeProfile();
-  if(!prof) return;
-  prof.funds = prof.funds.filter(f=>f.ticker!==ticker);
-  saveProfiles();
-  render();
+function removeFundFromProfile(ticker){
+  const prof=activeProfile();if(!prof)return;
+  prof.funds=prof.funds.filter(f=>f.ticker!==ticker);saveProfiles();render();
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HISTORY TAB
+// PIPELINE OVERLAY — 6 steps
 // ═══════════════════════════════════════════════════════════════
-async function renderHistory() {
-  const prof = activeProfile();
-  if(!prof) return '<div style="padding:40px;text-align:center;color:var(--text3)">No profile active.</div>';
-
-  const runs = await supa.getRuns(prof.id, 20);
-  if(!runs?.length) return `<div style="padding:48px;text-align:center;color:var(--text3)">
-    <div style="font-size:32px;margin-bottom:12px">📅</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text2)">No runs recorded yet</div>
-    <p style="font-size:12px;margin-top:8px">Click Run Analysis to execute your first live analysis.</p>
-  </div>`;
-
-  const cards = runs.map(run=>{
-    const scores = typeof run.model_weights==='string' ? JSON.parse(run.model_weights) : (run.model_weights||[]);
-    const sorted = (scores||[]).sort((a,b)=>b.composite-a.composite);
-    const top3 = sorted.slice(0,3);
-    const date = new Date(run.created_at);
-    return `<div class="card fade-in" style="margin-bottom:14px">
-      <div class="card-header">
-        <div>
-          <div style="font-weight:700">${date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
-          <div style="font-size:11px;color:var(--text3)">${date.toLocaleTimeString()} · ${run.source} data</div>
-        </div>
-        <div style="display:flex;gap:10px">
-          ${top3.map(f=>`<div style="text-align:center">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.ticker}</div>
-            <div style="font-size:10px;color:var(--text3)">${(f.composite||0).toFixed(2)}</div>
-          </div>`).join('')}
-        </div>
-      </div>
-      ${run.macro_snapshot?`<div style="padding:12px 18px;font-size:11px;color:var(--text2);line-height:1.6;border-top:1px solid var(--border)">${run.macro_snapshot.replace(/MACRO_JSON:.*/s,'').replace('MACRO_SUMMARY:','').trim().slice(0,400)}…</div>`:''}
-    </div>`;
-  }).join('');
-
-  return `<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 160px)">
-    <div class="label" style="margin-bottom:16px">Run History · ${runs.length} analyses</div>
-    ${cards}
-  </div>`;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PIPELINE LOADING OVERLAY
-// ═══════════════════════════════════════════════════════════════
-function renderPipelineOverlay() {
-  if(!APP.loading) return '';
-  const {step, total, stepName, detail} = APP.pipeline;
-  const pct = (step/total)*100;
-  const steps = [
-    {label:'SEC EDGAR', desc:'Fetch N-PORT holdings for each fund'},
-    {label:'Tiingo', desc:'Live NAV + momentum + Sharpe ratio'},
-    {label:'Macro Search', desc:'Web search for gold, DXY, rates, global returns'},
-    {label:'AI Scoring', desc:'Holdings-weighted fund composite scores'},
+function renderPipelineOverlay(){
+  if(!APP.loading)return'';
+  const{step,total,detail}=APP.pipeline;
+  const pct=(step/total)*100;
+  const steps=[
+    {label:'SEC EDGAR Holdings',desc:'Fetch N-PORT filings — 90-day cache'},
+    {label:'Tiingo Prices + Sector ETFs',desc:'NAV, momentum, Sharpe + sector ETF trends'},
+    {label:'World Intelligence',desc:'FRED economic data + GDELT geopolitical news'},
+    {label:'Claude Sector Scoring',desc:'Investment thesis + 11 GICS sector scores'},
+    {label:'Holdings Rollup',desc:'Map holdings → sectors → fund composite'},
+    {label:'Allocation + Thesis',desc:'Risk-adjusted allocation + investor letter'},
   ];
-  return `<div style="position:fixed;inset:0;background:rgba(247,245,240,0.92);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center">
-    <div class="card fade-in" style="width:460px;padding:32px;box-shadow:var(--shadow-md)">
+  return`<div style="position:fixed;inset:0;background:rgba(247,245,240,0.95);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center">
+    <div class="card fade-in" style="width:480px;padding:32px;box-shadow:var(--shadow-md)">
       <div style="font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;margin-bottom:4px">Running Analysis</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:24px">Fetching live data from SEC EDGAR, Tiingo, and AI scoring engine</div>
-      <!-- Progress bar -->
-      <div class="pbar-wrap" style="height:6px;margin-bottom:24px">
-        <div class="pbar-fill" style="width:${pct}%;background:var(--green)"></div>
-      </div>
-      <!-- Steps -->
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Holdings-level scoring · World intelligence · Statistical outlier detection</div>
+      <div class="pbar-wrap" style="height:6px;margin-bottom:24px"><div class="pbar-fill" style="width:${pct}%;background:var(--green)"></div></div>
       ${steps.map((s,i)=>{
-        const isDone = i < step-1;
-        const isActive = i === step-1;
-        return `<div class="pipeline-step">
-          <div class="pipeline-dot ${isDone?'done':isActive?'active':'pending'}" style="font-size:10px;font-weight:700">
-            ${isDone?'✓':isActive?'<div class="spinner" style="width:10px;height:10px;border-width:1.5px"></div>':i+1}
-          </div>
-          <div>
-            <div style="font-size:13px;font-weight:${isActive?700:600};color:${isDone?'var(--green)':isActive?'var(--text)':'var(--text3)'}">${s.label}</div>
-            <div style="font-size:11px;color:var(--text3)">${isActive?detail:s.desc}</div>
-          </div>
+        const isDone=i<step-1,isActive=i===step-1;
+        return`<div class="pipeline-step">
+          <div class="pipeline-dot ${isDone?'done':isActive?'active':'pending'}">${isDone?'✓':isActive?`<div class="spinner" style="width:10px;height:10px;border-width:1.5px"></div>`:i+1}</div>
+          <div><div style="font-size:13px;font-weight:${isActive?700:600};color:${isDone?'var(--green)':isActive?'var(--text)':'var(--text3)'}">${s.label}</div>
+          <div style="font-size:11px;color:var(--text3)">${isActive?detail:s.desc}</div></div>
         </div>`;
       }).join('')}
+      <div style="margin-top:16px;padding:10px 12px;background:var(--surface2);border-radius:7px;font-size:11px;color:var(--text3)">
+        Estimated time: 5–8 minutes. Holdings are cached for 90 days — subsequent runs are faster. You can navigate away; the analysis runs in the background.
+      </div>
     </div>
   </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN APP SHELL
+// APP SHELL
 // ═══════════════════════════════════════════════════════════════
-async function renderApp() {
-  const prof = activeProfile();
-  const srcEl = APP.source==='live'
-    ? `<span class="src-live">● LIVE · ${APP.lastRun}</span>`
-    : APP.source==='partial'
-    ? `<span class="src-partial">◑ PARTIAL</span>`
-    : `<span class="src-seed">○ SEED DATA</span>`;
-
-  const holdingsCount = APP.funds.filter(f=>f.holdings?.length).length;
-
-  // Tab content
-  let content = '';
-  if(APP.tab==='rank')      content = renderRank();
-  else if(APP.tab==='portfolio') content = renderPortfolio();
-  else if(APP.tab==='holdings')  content = renderHoldings();
-  else if(APP.tab==='matrix')    content = renderMatrix();
-  else if(APP.tab==='settings')  content = renderSettings();
-  else if(APP.tab==='history')   content = await renderHistory();
-
-  const hasAlerts = APP.funds.some(f=>f.alert);
-  const alertBar = hasAlerts ? `<div class="alert-banner">
-    <span style="font-weight:700">Alerts:</span>
-    ${APP.funds.filter(f=>f.alert).slice(0,4).map(f=>`<span><b style="font-family:'JetBrains Mono',monospace">${f.ticker}</b> — ${f.alert}</span>`).join(' · ')}
-  </div>` : '';
-
-  const html = `
-    <!-- Header -->
+async function renderApp(){
+  const prof=activeProfile();
+  const holdingsCount=APP.funds.filter(f=>f.holdings?.length).length;
+  const srcEl=APP.source==='live'?`<span class="src-live">● LIVE · ${APP.lastRun}</span>`:APP.source==='partial'?`<span class="src-partial">◑ PARTIAL</span>`:`<span class="src-seed">○ SEED DATA</span>`;
+  
+  let content='';
+  if(APP.tab==='rank')content=renderRank();
+  else if(APP.tab==='thesis')content=renderThesis();
+  else if(APP.tab==='portfolio')content=renderPortfolio();
+  else if(APP.tab==='holdings')content=renderHoldings();
+  else if(APP.tab==='matrix')content=renderMatrix();
+  else if(APP.tab==='settings')content=renderSettings();
+  else if(APP.tab==='history')content=await renderHistory();
+  
+  const hasAlerts=APP.funds.some(f=>f.alert);
+  const alertBar=hasAlerts?`<div class="alert-banner"><span style="font-weight:700">Fund Alerts:</span>${APP.funds.filter(f=>f.alert).slice(0,4).map(f=>`<span><b style="font-family:'JetBrains Mono',monospace">${f.ticker}</b> — ${f.alert}</span>`).join(' · ')}</div>`:'';
+  const themeBar=APP.dominantTheme?`<div style="background:var(--text);color:#fff;padding:5px 24px;font-size:11px;display:flex;align-items:center;gap:8px">
+    <span style="font-weight:700;letter-spacing:0.5px">THESIS</span>
+    <span>${APP.dominantTheme}</span>
+    <span style="opacity:0.5">·</span>
+    <span style="opacity:0.7">Macro: ${APP.investmentThesis?.macroStance||'—'}</span>
+    <span style="opacity:0.5">·</span>
+    <span style="opacity:0.7">Q Outlook: ${APP.investmentThesis?.quarterOutlook||'—'}</span>
+  </div>`:'';
+  
+  return`
     <div class="app-header">
       <div style="display:flex;align-items:center;gap:20px">
         <div class="app-logo">Fund<span>Lens</span></div>
-        <div style="font-size:12px;color:var(--text3)">Q2 2026 · ${prof?.name||''} · ${APP.funds.length} funds</div>
+        <div style="font-size:12px;color:var(--text3)">Q2 2026 · ${prof?.name||''} · ${APP.funds.length} funds · risk ${prof?.risk||5}/9</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         ${srcEl}
-        ${holdingsCount>0?`<span style="font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);padding:2px 10px;border-radius:10px;font-weight:600;white-space:nowrap" title="${APP.funds.filter(f=>!f.holdings?.length).map(f=>f.ticker).join(', ')} have no N-PORT-P filings">${holdingsCount}/${APP.funds.length} w/ holdings</span>`:''}
+        ${holdingsCount>0?`<span style="font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);padding:2px 10px;border-radius:10px;font-weight:600">${holdingsCount}/${APP.funds.length} w/ holdings</span>`:''}
         <button class="btn btn-primary" onclick="runPipeline()" ${APP.loading?'disabled':''} style="padding:7px 14px;font-size:12px">
           ${APP.loading?'<span class="spinner"></span>':'▶'} ${APP.source==='live'?'Refresh':'Run Analysis'}
         </button>
-        <button class="btn btn-ghost" onclick="APP.tab='settings';render()" style="padding:7px 12px;font-size:13px" title="Settings">⚙</button>
       </div>
     </div>
     ${alertBar}
-    <!-- Weights bar -->
-    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    ${themeBar}
+    <!-- Factor weights bar -->
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:5px 24px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       <span style="font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);margin-right:4px">WEIGHTS</span>
       ${Object.entries(getWeights()).map(([k,v])=>`<span style="padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;font-size:10px;font-weight:600;color:var(--text2)">${k} <b style="color:var(--text);font-family:'JetBrains Mono',monospace">${v}%</b></span>`).join('')}
     </div>
     <!-- Tabs -->
     <div class="tabs">
-      ${[['rank','Rankings'],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
+      ${[['rank','Rankings'],['thesis',`Thesis${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
     </div>
-    <!-- Content -->
     <div class="fade-in">${content}</div>
-    <!-- Footer -->
-    <div style="padding:8px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;justify-content:space-between;background:var(--surface)">
-      <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Q2 APR–JUN 2026</span>
-      <span>Holdings from SEC EDGAR N-PORT · Prices via Tiingo · AI: claude-haiku-4-5</span>
+    <div style="padding:7px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;justify-content:space-between;background:var(--surface)">
+      <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Holdings-based sector scoring · 90-day predictions tracked vs actual</span>
+      <span>Holdings: SEC EDGAR N-PORT · Prices: Tiingo · Macro: FRED + GDELT · AI: claude-haiku-4-5 · Sectors: GICS</span>
     </div>
-    ${renderPipelineOverlay()}
-  `;
-
-  return html;
+    ${renderPipelineOverlay()}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
 // ROOT RENDER
 // ═══════════════════════════════════════════════════════════════
-async function render() {
-  const root = document.getElementById('app');
-  if(APP.wizard) {
-    root.innerHTML = renderWizard();
-  } else {
-    root.innerHTML = await renderApp();
-  }
+async function render(){
+  const root=document.getElementById('app');
+  if(APP.wizard){root.innerHTML=renderWizard()}
+  else{root.innerHTML=await renderApp()}
 }
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
-async function init() {
-  APP.profiles = loadProfiles();
-  if(APP.profiles.length) {
-    APP.activeProfile = APP.profiles[0].id;
-    APP.wizard = false;
-    const prof = activeProfile();
-
-    // Preload holdings cache from Supabase so the Holdings tab
-    // and fund detail panel work immediately without needing a new run.
-    // Schema is row-per-holding: group by fund_ticker to reconstruct arrays.
-    try {
-      const rows = await supa.get('holdings_cache', '?select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,indexed_at&order=indexed_at.desc');
-      if(Array.isArray(rows)) {
-        const grouped = {};
-        rows.forEach(row => {
-          const ft = row.fund_ticker;
-          if(!ft) return;
-          if(!grouped[ft]) grouped[ft] = { holdings: [], fetchedAt: row.indexed_at };
-          grouped[ft].holdings.push({
-            name:     row.holding_name || '',
-            ticker:   row.holding_ticker || '',
-            pctVal:   row.weight || 0,
-            valUSD:   row.market_value || 0,
-            assetCat: row.asset_type || '',
-            sector:   row.sector || '',
-            cusip:    '',
-          });
+async function init(){
+  APP.profiles=loadProfiles();
+  if(APP.profiles.length){
+    APP.activeProfile=APP.profiles[0].id;
+    APP.wizard=false;
+    const prof=activeProfile();
+    
+    // Preload holdings cache from Supabase
+    try{
+      const rows=await supa.h.get('holdings_cache','?select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,indexed_at&order=indexed_at.desc');
+      if(Array.isArray(rows)){
+        const grouped={};
+        rows.forEach(row=>{
+          const ft=row.fund_ticker;if(!ft)return;
+          if(!grouped[ft])grouped[ft]={holdings:[],fetchedAt:row.indexed_at};
+          grouped[ft].holdings.push({name:row.holding_name||'',ticker:row.holding_ticker||'',pctVal:row.weight||0,valUSD:row.market_value||0,assetCat:row.asset_type||'',sector:row.sector||'',cusip:''});
         });
-        Object.entries(grouped).forEach(([ticker, data]) => {
-          const age = (Date.now() - new Date(data.fetchedAt).getTime()) / 86400000;
-          if(age < 90 && !APP.holdingsCache[ticker]) {
-            APP.holdingsCache[ticker] = data;
-          }
+        Object.entries(grouped).forEach(([ticker,data])=>{
+          const age=(Date.now()-new Date(data.fetchedAt).getTime())/86400000;
+          if(age<90&&!APP.holdingsCache[ticker])APP.holdingsCache[ticker]=data;
         });
       }
-    } catch(e) { /* non-fatal */ }
-
-    APP.funds = buildComposite(prof.funds, null, null, prof.weights);
-    APP.selectedFund = APP.funds[0]?.ticker;
+    }catch(e){}
+    
+    // Preload sector mapping cache from Supabase
+    try{
+      const rows=await supa.h.get('sector_mappings','?select=ticker,sector&limit=2000');
+      if(Array.isArray(rows))rows.forEach(r=>{if(r.ticker&&r.sector)APP.sectorMappingCache[r.ticker]=r.sector});
+    }catch(e){}
+    
+    // Build initial composite from seeds
+    APP.funds=(prof.funds||DEFAULT_FUNDS).map(f=>({
+      ...f,...(SEED[f.ticker]||{composite:5,roi:0}),
+      tier:getTierFromModZ(0),modZ:0,momentum:5,riskAdj:5,
+      worldThesisScore:5,returnScore:5,sectorBreakdown:{},
+      alert:ALERTS[f.ticker]||null,
+      holdings:APP.holdingsCache[f.ticker]?.holdings||null,
+    }));
+    APP.funds=applyStatisticalAnalysis(APP.funds);
+    APP.selectedFund=APP.funds[0]?.ticker;
+    
+    // Check for closed prediction cycles (update actual ROI in background)
+    checkAndUpdateClosedPredictions().catch(()=>{});
   }
   render();
 }
 
 init();
+
+/*
+═══════════════════════════════════════════════════════════════
+SUPABASE SCHEMA — Run these SQL statements in Supabase SQL editor
+to create the new tables required by FundLens v3:
+═══════════════════════════════════════════════════════════════
+
+-- Existing tables (keep as-is from v2):
+-- holdings_cache, runs
+
+-- NEW: Sector mapping cache (holds GICS classifications for fund holdings)
+CREATE TABLE IF NOT EXISTS sector_mappings (
+  ticker TEXT PRIMARY KEY,
+  sector TEXT,
+  industry TEXT,
+  cached_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- NEW: Prediction cycles (one record per analysis run)
+CREATE TABLE IF NOT EXISTS prediction_cycles (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  closes_at TIMESTAMPTZ,
+  world_snapshot JSONB,
+  investment_thesis TEXT,
+  dominant_theme TEXT,
+  risk_factors TEXT[],
+  catalysts TEXT[],
+  sector_scores JSONB,
+  risk_tolerance INT DEFAULT 5
+);
+
+-- NEW: Individual fund predictions per cycle
+CREATE TABLE IF NOT EXISTS fund_predictions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cycle_id TEXT REFERENCES prediction_cycles(id),
+  fund_ticker TEXT NOT NULL,
+  predicted_composite FLOAT,
+  predicted_roi FLOAT,
+  predicted_tier TEXT,
+  predicted_rank INT,
+  nav_at_prediction FLOAT,
+  nav_at_close FLOAT,
+  actual_roi FLOAT,
+  sector_breakdown JSONB,
+  allocation_pct FLOAT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS (Row Level Security) if needed for multi-user:
+-- ALTER TABLE prediction_cycles ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE fund_predictions ENABLE ROW LEVEL SECURITY;
+═══════════════════════════════════════════════════════════════
+*/
 </script>
 </body>
 </html>

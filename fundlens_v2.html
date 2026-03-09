@@ -211,6 +211,7 @@ let APP = {
   sectorScores:null,    // {Technology:{score,reason}, ...}
   investmentThesis:null, // Full thesis object from Claude
   dominantTheme:null,
+  dataQuality:null,     // {fredOk,gdeltOk,fredSeriesCount,headlineCount,claudeUsedWebSearch,assessedAt}
   // Prediction tracking
   currentCycleId:null,
   // UI
@@ -1054,6 +1055,23 @@ async function runPipeline(){
     });
   }
   
+  // Assess data quality — drives staleness warning in UI
+  const fredOk=(worldData?.fredAvailable||0)>=4;
+  const gdeltOk=(worldData?.headlineCount||0)>=6;
+  const claudeUsedWebSearch=!fredOk; // Claude was asked to web search when FRED was sparse
+  let staleness='live';
+  if(!fredOk&&!gdeltOk) staleness='stale';
+  else if(!fredOk||!gdeltOk) staleness='partial';
+  APP.dataQuality={
+    fredOk, gdeltOk,
+    fredSeriesCount:worldData?.fredAvailable||0,
+    fredSeriesTotal:Object.keys(FRED_SERIES).length,
+    headlineCount:worldData?.headlineCount||0,
+    claudeUsedWebSearch,
+    staleness,  // 'live' | 'partial' | 'stale'
+    assessedAt:new Date().toLocaleString(),
+  };
+
   APP.source=APP.sectorScores?'live':'partial';
   APP.lastRun=new Date().toLocaleString();
   APP.selectedFund=rankedFunds[0]?.ticker;
@@ -1063,9 +1081,47 @@ async function runPipeline(){
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DATA QUALITY WARNING BANNER
+// ═══════════════════════════════════════════════════════════════
+function renderDataQualityWarning(){
+  const dq=APP.dataQuality;
+  if(!dq||dq.staleness==='live')return'';
+
+  if(dq.staleness==='stale'){
+    return`<div style="background:var(--red-bg);border-bottom:2px solid var(--red-bd);padding:9px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <span style="font-size:14px;flex-shrink:0">⚠️</span>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:2px">Macro data unavailable — scores reflect AI training knowledge, not live market conditions</div>
+        <div style="font-size:11px;color:var(--red);line-height:1.6">
+          FRED returned ${dq.fredSeriesCount}/${dq.fredSeriesTotal} economic series and GDELT returned ${dq.headlineCount} headlines — not enough to ground the thesis in current data.
+          Claude is scoring sectors from its training knowledge, which has a cutoff date and may be months out of date.
+          <b>Do not act on these scores.</b> Check that FRED_KEY is set correctly in Railway, then run again to restore live data.
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // partial — some data came through, some did not
+  const missing=[];
+  if(!dq.fredOk)missing.push(`FRED economic data (${dq.fredSeriesCount}/${dq.fredSeriesTotal} series fetched — check FRED_KEY in Railway)`);
+  if(!dq.gdeltOk)missing.push(`GDELT geopolitical news (${dq.headlineCount} headlines — GDELT may be temporarily rate-limited)`);
+  return`<div style="background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <span style="font-size:13px;flex-shrink:0">◑</span>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:2px">Partial live data — sector thesis may be less precise than usual</div>
+      <div style="font-size:11px;color:var(--amber);line-height:1.6">
+        ${missing.join(' · ')}.
+        Claude supplemented the gaps with ${dq.claudeUsedWebSearch?'a live web search':'its training knowledge'}.
+        Scores are directionally useful but not fully grounded in real-time data. Consider re-running once the data source recovers.
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData={name:'',risk:5,horizon:15,goals:'',contribution:250,frequency:'biweekly',funds:[...DEFAULT_FUNDS],fundInput:''};
+let wizardData={name:'',risk:5,contribution:250,frequency:'biweekly',funds:[...DEFAULT_FUNDS],fundInput:''};
 
 function renderWizard(){
   const step=APP.wizardStep;
@@ -1083,10 +1139,6 @@ function renderWizard(){
         <input type="range" id="wRisk" min="1" max="9" value="${wizardData.risk}" oninput="wizardData.risk=parseInt(this.value);document.getElementById('riskLabel').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:6px;accent-color:var(--accent)">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:16px"><span>1 — Protect capital above all</span><span>9 — Maximize gains, accept risk</span></div>
         <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">${riskDescription(wizardData.risk)}</div>
-        <label class="label" style="display:block;margin-bottom:6px">Investment Horizon (years)</label>
-        <input type="number" value="${wizardData.horizon}" min="1" max="40" oninput="wizardData.horizon=parseInt(this.value)||15" style="margin-bottom:14px">
-        <label class="label" style="display:block;margin-bottom:6px">Investment Goals (optional)</label>
-        <textarea id="wGoals" rows="2" style="resize:none;margin-bottom:14px" placeholder="e.g. Maximize long-term growth, tolerate short-term volatility">${wizardData.goals}</textarea>
         <div style="display:flex;gap:12px">
           <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution</label>
             <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
@@ -1100,7 +1152,7 @@ function renderWizard(){
   }else if(step===2){
     const chips=wizardData.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFund('${f.ticker}')">×</button></span>`).join(' ');
     body=`<div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add every mutual fund ticker available in your 401K. FundLens will fetch their actual holdings from SEC EDGAR and score each company inside the fund based on current world conditions.</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add every mutual fund ticker available in your 401K. FundLens will fetch the actual companies inside each fund from SEC EDGAR and score every holding based on current macro conditions — then surface the funds that hold the right stocks for right now.</p>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <input type="text" id="fundInput" placeholder="e.g. VFINX" oninput="wizardData.fundInput=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')addFund()" value="${wizardData.fundInput}" style="flex:1;text-transform:uppercase">
         <button class="btn btn-primary" onclick="addFund()">Add</button>
@@ -1113,12 +1165,11 @@ function renderWizard(){
     body=`<div style="text-align:center;padding:20px 0">
       <div style="font-size:48px;margin-bottom:16px">📊</div>
       <h2 style="font-family:'Libre Baskerville',serif;font-size:22px;margin-bottom:10px">Ready, ${name}!</h2>
-      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:20px">FundLens will analyze each fund from the holdings level up — mapping every company to its industry sector, scoring it against current world conditions, then rolling up to a fund composite ranking.</p>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:20px">FundLens will look inside each fund, score every holding based on what is happening in the world <em>right now</em>, and identify which funds are positioned for the next 30–90 days — not next year, not long-term. The right stocks for this moment.</p>
       <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:left;font-size:12px;color:var(--text2)">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Risk Tolerance</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/9 (${riskLabel(wizardData.risk)})</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Horizon</span><span style="font-weight:700;color:var(--text)">${wizardData.horizon} years</span></div>
-        <div style="display:flex;justify-content:space-between"><span>Contribution</span><span style="font-weight:700;color:var(--text)">$${wizardData.contribution} ${wizardData.frequency}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Contribution</span><span style="font-weight:700;color:var(--text)">$${wizardData.contribution} ${wizardData.frequency}</span></div>
       </div>
     </div>`;
   }
@@ -1128,8 +1179,8 @@ function renderWizard(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="app-logo">Fund<span>Lens</span></div><div class="step-dots">${dots}</div>
       </div>
-      <h1 style="font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:4px">${['','Set Up Your Profile','Your Fund Universe','You\'re All Set'][step]}</h1>
-      <p style="font-size:13px;color:var(--text2)">${['','Define your risk tolerance so FundLens can tailor recommendations to your investment goals.','Add all funds available in your 401K plan.','FundLens will run a full live analysis, scoring each fund from the holdings level up.'][step]}</p>
+      <h1 style="font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:4px">${['','Your Investor Profile','Your Fund Universe','Ready to Find the Right Stocks'][step]}</h1>
+      <p style="font-size:13px;color:var(--text2)">${['','Set your risk tolerance so FundLens knows how aggressively to concentrate your allocation in the top-ranked opportunities.','Add all funds available in your 401K plan.','FundLens will analyze what is happening in the world right now and identify which funds hold the right companies for this moment.'][step]}</p>
     </div>
     <div class="wizard-body">${body}</div>
     <div class="wizard-footer">
@@ -1163,8 +1214,8 @@ function wizardNext(){
 }
 function wizardFinish(){
   const id='user_'+Date.now();
-  const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,horizon:wizardData.horizon,
-    goals:wizardData.goals,contribution:wizardData.contribution,frequency:wizardData.frequency,
+  const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,
+    goals:'',contribution:wizardData.contribution,frequency:wizardData.frequency,
     funds:wizardData.funds,weights:DEFAULT_WEIGHTS,createdAt:new Date().toISOString()};
   APP.profiles.push(profile);APP.activeProfile=id;saveProfiles();
   APP.wizard=false;
@@ -1231,7 +1282,7 @@ function renderRank(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
           <div class="label">Holdings-Based Rankings — ${APP.funds.length} Funds</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Scores reflect sector outlook × holdings composition × momentum · Mod Z-Score outlier detection</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Each fund scored by what its holdings are worth <em>right now</em> — sector outlook × position weight × momentum · Mod Z-Score outlier detection</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${[['var(--green)','🏆 BREAKAWAY'],['var(--green)','⭐ STRONG'],['var(--amber)','✓ SOLID'],['var(--blue)','→ NEUTRAL'],['var(--red)','⚠ WEAK']].map(([c,l])=>`<span style="font-size:10px;color:${c}">${l}</span>`).join(' · ')}
@@ -1350,7 +1401,17 @@ function renderThesis(){
         
         <!-- Full technical thesis -->
         ${thesis?.thesis?`<div class="card" style="margin-bottom:20px">
-          <div class="card-header"><div style="font-weight:700">Technical Investment Thesis</div><div style="font-size:11px;color:var(--text3)">AI-generated based on live FRED + GDELT data · ${APP.lastRun||''}</div></div>
+          <div class="card-header"><div style="font-weight:700">Technical Investment Thesis</div><div style="font-size:11px;color:var(--text3)">${
+      (()=>{const dq=APP.dataQuality;
+        if(!dq)return'AI-generated · '+APP.lastRun;
+        const src=[];
+        if(dq.fredOk)src.push('FRED '+dq.fredSeriesCount+' series');
+        if(dq.gdeltOk)src.push('GDELT '+dq.headlineCount+' headlines');
+        if(dq.claudeUsedWebSearch&&!dq.fredOk)src.push('Claude web search');
+        if(!dq.fredOk&&!dq.gdeltOk)src.push('AI training knowledge only — may be outdated');
+        return 'Sources: '+(src.join(' · ')||'none')+' · '+APP.lastRun;
+      })()
+    }</div></div>
           <div class="card-body">
             <div class="thesis-prose">${thesis.thesis.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
           </div>
@@ -1394,7 +1455,7 @@ function renderThesis(){
         </div>
       </div>
     </div>
-    <div style="padding:8px;font-size:10px;color:var(--text3);text-align:center;margin-top:8px">ANALYTICAL FRAMEWORK ONLY · NOT FINANCIAL ADVICE · AI-GENERATED CONTENT · Sector scores based on FRED economic data, GDELT geopolitical intelligence, and sector ETF momentum</div>
+    <div style="padding:8px;font-size:10px;color:var(--text3);text-align:center;margin-top:8px">ANALYTICAL FRAMEWORK ONLY · NOT FINANCIAL ADVICE · AI-GENERATED CONTENT · Right stocks for right now — 30–90 day tactical window · Sector scores based on current FRED economic data, GDELT geopolitical intelligence, and sector ETF momentum</div>
   </div>`;
 }
 
@@ -1629,7 +1690,7 @@ async function renderHistory(){
   if(!cycles?.length)return`<div style="padding:48px;text-align:center;color:var(--text3)">
     <div style="font-size:32px;margin-bottom:12px">📅</div>
     <div style="font-size:14px;font-weight:600;color:var(--text2)">No prediction history yet</div>
-    <p style="font-size:12px;margin-top:8px;line-height:1.6">Each time you run an analysis, FundLens records its predictions here. After 90 days, actual prices are fetched automatically to measure prediction accuracy.</p>
+    <p style="font-size:12px;margin-top:8px;line-height:1.6">Each time you run an analysis, FundLens records its predictions here. After 90 days, actual prices are fetched automatically to measure how accurately the model identified the right stocks for that moment.</p>
   </div>`;
   
   // Calculate information coefficient across closed cycles
@@ -1743,10 +1804,6 @@ function renderSettings(){
           <label class="label" style="display:block;margin-bottom:5px">Risk Tolerance: <span id="sRisk" style="font-family:'JetBrains Mono',monospace">${prof.risk}/9 — ${riskLabel(prof.risk)}</span></label>
           <input type="range" min="1" max="9" value="${prof.risk}" oninput="updateProfile('risk',parseInt(this.value));document.getElementById('sRisk').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:4px;accent-color:var(--accent)">
           <div style="background:var(--surface2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);margin-bottom:14px">${riskDescription(prof.risk)}</div>
-          <label class="label" style="display:block;margin-bottom:5px">Horizon (years)</label>
-          <input type="number" value="${prof.horizon}" min="1" max="40" onchange="updateProfile('horizon',parseInt(this.value))" style="margin-bottom:14px">
-          <label class="label" style="display:block;margin-bottom:5px">Goals</label>
-          <textarea rows="3" style="resize:none;margin-bottom:14px" onchange="updateProfile('goals',this.value)">${prof.goals||''}</textarea>
           <div style="display:flex;gap:10px">
             <div style="flex:1"><label class="label" style="display:block;margin-bottom:5px">Contribution ($)</label>
               <div style="position:relative"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)">$</span>
@@ -1860,7 +1917,7 @@ function renderPipelineOverlay(){
   return`<div style="position:fixed;inset:0;background:rgba(247,245,240,0.95);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center">
     <div class="card fade-in" style="width:480px;padding:32px;box-shadow:var(--shadow-md)">
       <div style="font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;margin-bottom:4px">Running Analysis</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Holdings-level scoring · World intelligence · Statistical outlier detection</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Identifying the right stocks for this moment — 30–90 day tactical window</div>
       <div class="pbar-wrap" style="height:6px;margin-bottom:24px"><div class="pbar-fill" style="width:${pct}%;background:var(--green)"></div></div>
       ${steps.map((s,i)=>{
         const isDone=i<step-1,isActive=i===step-1;
@@ -1909,7 +1966,7 @@ async function renderApp(){
     <div class="app-header">
       <div style="display:flex;align-items:center;gap:20px">
         <div class="app-logo">Fund<span>Lens</span></div>
-        <div style="font-size:12px;color:var(--text3)">Q2 2026 · ${prof?.name||''} · ${APP.funds.length} funds · risk ${prof?.risk||5}/9</div>
+        <div style="font-size:12px;color:var(--text3)">30–90 day tactical window · ${prof?.name||''} · ${APP.funds.length} funds · risk ${prof?.risk||5}/9</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         ${srcEl}
@@ -1930,9 +1987,10 @@ async function renderApp(){
     <div class="tabs">
       ${[['rank','Rankings'],['thesis',`Thesis${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
     </div>
+    ${renderDataQualityWarning()}
     <div class="fade-in">${content}</div>
     <div style="padding:7px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;justify-content:space-between;background:var(--surface)">
-      <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Holdings-based sector scoring · 90-day predictions tracked vs actual</span>
+      <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Right stocks for right now · 30–90 day tactical window · predictions tracked vs actual</span>
       <span>Holdings: SEC EDGAR N-PORT · Prices: Tiingo · Macro: FRED + GDELT · AI: claude-haiku-4-5 · Sectors: GICS</span>
     </div>
     ${renderPipelineOverlay()}`;

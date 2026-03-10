@@ -937,64 +937,24 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GICS SECTOR MAPPING — FMP API with Claude fallback
+// GICS SECTOR MAPPING — Supabase cache + Claude batch classification
 // ═══════════════════════════════════════════════════════════════
-// Session flag: FMP API was discontinued Aug 2025 — server route returns 410 Gone.
-// Initialized false so we skip all FMP calls and go straight to Claude fallback.
-// (Previously initialized true which wasted one roundtrip per session.)
-let FMP_AVAILABLE = false;
+// Sector classifications resolved in two passes:
+//   Pass 1: In-memory cache, then Supabase (90-day TTL) — fast path for known tickers
+//   Pass 2: Any still-unknown tickers → one batched Claude call
+// FMP API removed: server route discontinued Aug 2025 (returns 410 Gone).
 
-async function mapTickerToSector(ticker, companyName){
+async function mapTickerToSector(ticker){
   if(!ticker)return null;
-
-  // Check in-memory cache
+  // In-memory cache — fastest path, pre-loaded from Supabase on init
   if(APP.sectorMappingCache[ticker])return APP.sectorMappingCache[ticker];
-
-  // Check Supabase cache (90-day TTL)
+  // Supabase cache — 90-day TTL, survives across sessions
   const cached=await supa.getSectorMapping(ticker);
   if(cached){
     const age=(Date.now()-new Date(cached.cached_at).getTime())/86400000;
     if(age<90){APP.sectorMappingCache[ticker]=cached.sector;return cached.sector}
   }
-
-  // Try FMP — skip immediately if already confirmed unavailable this session.
-  // The server /api/fmp/* route returns 410 Gone (free tier dropped Aug 2025).
-  // Any non-ok response (403, 410, 5xx) permanently disables FMP for this session
-  // so we don't waste 60 roundtrips that all fail identically.
-  if(FMP_AVAILABLE){
-    try{
-      const r=await fetch(`/api/fmp/stable/profile?symbol=${ticker}`,{signal:fetchSignal(6000)});
-      if(!r.ok){
-        FMP_AVAILABLE=false;
-        console.warn(`FMP: ${r.status} — disabling for this session, routing all sector mapping to Claude fallback.`);
-        return null;
-      }
-      if(r.ok){
-        const data=await r.json();
-        const sector=data?.[0]?.sector||null;
-        const industry=data?.[0]?.industry||null;
-        if(sector){
-          const normalized=normalizeSectorName(sector);
-          APP.sectorMappingCache[ticker]=normalized;
-          await supa.saveSectorMapping(ticker,normalized,industry);
-          return normalized;
-        }
-      }
-    }catch(e){/* FMP unavailable */}
-  }
-
-  return null; // Handled by Claude batch classification below
-}
-
-function normalizeSectorName(fmpSector){
-  const map={
-    'Technology':'Technology','Financial Services':'Financials','Financials':'Financials',
-    'Healthcare':'Healthcare','Consumer Cyclical':'Consumer Discretionary',
-    'Consumer Defensive':'Consumer Staples','Basic Materials':'Materials',
-    'Communication Services':'Communication Services','Energy':'Energy',
-    'Industrials':'Industrials','Utilities':'Utilities','Real Estate':'Real Estate',
-  };
-  return map[fmpSector]||fmpSector;
+  return null; // Not cached — resolved by Claude batch classification below
 }
 
 // Batch-classify holdings with unknown sectors using Claude
@@ -1141,8 +1101,11 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
   const results=[];
   const pl=setDetail||(()=>{}); // pipeline detail callback — safe no-op if not provided
 
-  // ── Step A: Map all holdings to sectors (FMP + Claude fallback) ──
-  // Deduplicate: only process tickers not already in the in-memory cache
+  // ── Step A: Map all holdings to sectors ──────────────────────────
+  // Pass 1: warm up the in-memory cache from Supabase for any tickers
+  //   not already loaded at init. No network delay — pure cache reads.
+  // Pass 2: anything still unmapped goes to Claude in one batched call.
+  // (FMP was removed — route returns 410 Gone since Aug 2025.)
   const allHoldings=[];
   const seen=new Set();
   fundsWithHoldings.forEach(f=>{
@@ -1154,20 +1117,16 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
     });
   });
 
-  // FMP: cap at 60 to respect 250 req/day free tier; log skipped count clearly
-  const toFMP=allHoldings.slice(0,60);
-  const skippedFMP=allHoldings.length-toFMP.length;
-  if(skippedFMP>0) console.warn(`FMP sector mapping: skipping ${skippedFMP} tickers (daily limit — will use Claude fallback)`);
-  for(let i=0;i<toFMP.length;i++){
-    pl(`Step 5A: Sector mapping via FMP (${i+1}/${toFMP.length})...`);
-    await mapTickerToSector(toFMP[i].ticker, toFMP[i].name);
-    await sleep(80);
+  // Pass 1 — Supabase cache warm-up (no sleep needed, no rate limit)
+  if(allHoldings.length){
+    pl(`Step 5A: Loading sector cache for ${allHoldings.length} holdings...`);
+    for(const h of allHoldings) await mapTickerToSector(h.ticker);
   }
 
-  // Claude fallback for any still-unmapped (includes skipped FMP tickers)
+  // Pass 2 — Claude batch for anything still unmapped
   const stillUnmapped=allHoldings.filter(h=>!APP.sectorMappingCache[h.ticker]);
   if(stillUnmapped.length){
-    pl(`Step 5A: Claude classifying ${stillUnmapped.length} unmapped tickers...`);
+    pl(`Step 5A: Claude classifying ${stillUnmapped.length} unknown sectors...`);
     const clsResult=await classifyUnknownSectors(stillUnmapped);
     Object.entries(clsResult).forEach(([key,sector])=>{APP.sectorMappingCache[key]=sector});
     console.log(`Claude sector fallback: classified ${Object.keys(clsResult).length} tickers`);
@@ -1580,7 +1539,19 @@ async function runPipeline(){
   const weights=getWeights();
   const tiingo={};
 
+  // setPL — full render, only called when the step number advances (6× per run).
+  // Never call this for within-step sub-progress — use setDetailOnly instead.
   function setPL(step,total,stepName,detail){APP.pipeline={step,total,stepName,detail};render()}
+
+  // setDetailOnly — patches just the active-step detail text node directly.
+  // No layout, no reflow, no visible jump. Falls back to render() if the
+  // overlay isn't mounted yet (e.g. very first call before step 1 renders).
+  function setDetailOnly(detail){
+    APP.pipeline.detail=detail;
+    const el=document.getElementById('pl-detail');
+    if(el){el.textContent=detail;}
+    // no render() — intentional. The overlay stays stable.
+  }
 
   // ─────────────────────────────────────────────────────────────
   // BACKGROUND: Manager quality scores — runs alongside EDGAR so
@@ -1631,27 +1602,40 @@ async function runPipeline(){
   if(worldDataIsFresh()&&APP.worldData&&APP.sectorScores){
     console.log(`World data cache HIT — skipping FRED+GDELT fetch (fresh within ${activeProfile()?.worldDataTTL||DEFAULT_WORLD_TTL_MINS}min TTL)`);
   }else{
-    const worldData=await buildWorldIntelligence(detail=>{setPL(1,6,'STEP 1 / 6',detail);});
+    const worldData=await buildWorldIntelligence(detail=>{setDetailOnly(detail);});
     APP.worldData=worldData;
     APP.worldDataFetchedAt=new Date().toISOString(); // enables worldDataIsFresh() TTL check
   }
 
   // ── STEP 2: Tiingo NAV + Sector ETF Momentum ─────────────────
-  // Fund NAV, 63-day momentum, and Sharpe ratio from Tiingo daily prices.
-  // Sector ETFs (XLK, XLF…) fetched separately for the sector momentum
-  // blend in holdings rollup (40% weight). Sequential with 200ms delay
-  // to stay within Tiingo's rate limit.
+  // CACHE BYPASS: when market is closed and every ticker is already in
+  // APP.tiingoCache, skip the per-ticker loop entirely — no network calls
+  // AND no per-ticker setPL renders (which caused a visible screen "jump"
+  // 33 times even on pure cache hits, because each setPL calls render()).
   setPL(2,6,'STEP 2 / 6','Fetching fund prices, momentum & Sharpe ratios from Tiingo...');
-  for(let i=0;i<funds.length;i++){
-    setPL(2,6,'STEP 2 / 6',`Tiingo prices: ${funds[i].ticker} (${i+1}/${funds.length})`);
-    const d=await fetchTiingo(funds[i].ticker);
-    if(d)tiingo[funds[i].ticker]=d;
-    await sleep(200);
+  const allFundTkrs=funds.map(f=>f.ticker);
+  const allEtfTkrs=Object.values(GICS_SECTORS).map(d=>d.etf);
+  const allTiingoTkrs=[...allFundTkrs,...allEtfTkrs];
+  const allTiingoCached=!APP.marketOpen&&allTiingoTkrs.every(t=>APP.tiingoCache[t]);
+
+  if(allTiingoCached){
+    // Fully cached — populate tiingo map from cache, single render only
+    setPL(2,6,'STEP 2 / 6',`Tiingo: all ${allTiingoTkrs.length} tickers from cache (market closed)`);
+    allFundTkrs.forEach(t=>{ if(APP.tiingoCache[t]) tiingo[t]=APP.tiingoCache[t].data; });
+    APP.tiingoStale=true;
+  }else{
+    // Live fetch or partial cache — show per-ticker progress as before
+    for(let i=0;i<funds.length;i++){
+      setDetailOnly(`Tiingo prices: ${funds[i].ticker} (${i+1}/${funds.length})`);
+      const d=await fetchTiingo(funds[i].ticker);
+      if(d)tiingo[funds[i].ticker]=d;
+      await sleep(200);
+    }
   }
   setPL(2,6,'STEP 2 / 6','Fetching sector ETF momentum (XLK, XLF, XLE, XLV...)');
+  // fetchSectorMomentum uses fetchTiingo internally — also hits cache when closed
   const sectorMomentum=await fetchSectorMomentum();
-  // Persist Tiingo cache to localStorage now that all tickers are loaded.
-  // After-hours page reloads will restore from here, skipping all 33 network calls.
+  // Persist to localStorage so next page reload restores instantly
   saveTiingoCache();
 
   // ── STEP 3: Strategy Formation ────────────────────────────────
@@ -1688,7 +1672,7 @@ async function runPipeline(){
   // Momentum: 60% fund NAV (Tiingo) + 40% sector ETF (blended).
   // Modified Z-score detects statistical outliers in the final ranking.
   setPL(5,6,'STEP 5 / 6','Scoring each fund by holdings × strategy...');
-  let rankedFunds=await scoreHoldingsAndRollup(fundsWithHoldings,APP.sectorScores,tiingo,sectorMomentum,weights,detail=>{setPL(5,6,'STEP 5 / 6',detail);});
+  let rankedFunds=await scoreHoldingsAndRollup(fundsWithHoldings,APP.sectorScores,tiingo,sectorMomentum,weights,detail=>{setDetailOnly(detail);});
   rankedFunds=applyStatisticalAnalysis(rankedFunds);
   APP.funds=rankedFunds;
 
@@ -2094,7 +2078,33 @@ function renderThesis(){
             <span style="font-size:12px;color:var(--text3)">${riskLabel(rt)} profile (${rt}/9)</span>
           </div>
           <div class="card-body">
-            <div class="thesis-prose">${letter.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
+            <div class="thesis-prose">${(()=>{
+              // Render investor letter with smart line handling:
+              // 1. Split on paragraph breaks first
+              // 2. Within each paragraph, detect lines starting with "- **TICKER**" pattern
+              //    and render them as individual bullet items instead of running together
+              const paras = letter.split(/\n\n+/);
+              return paras.map(para => {
+                const lines = para.split(/\n/).map(l => l.trim()).filter(Boolean);
+                // If any line in this paragraph looks like a fund bullet (starts with - ** or **TICKER)
+                const hasFundLines = lines.some(l => /^[-•]?\s*\*\*[A-Z]/.test(l));
+                if(hasFundLines && lines.length > 1){
+                  // Render each line as its own bullet
+                  return '<ul class="thesis-bullets">' +
+                    lines.map(l => {
+                      const clean = l.replace(/^[-•]\s*/,'');
+                      // Bold the **text** markdown
+                      const html = clean.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+                      return \`<li>\${html}</li>\`;
+                    }).join('') +
+                  '</ul>';
+                }
+                // Single line or no fund bullets — render as paragraph
+                // Still process markdown bold within prose
+                const html = lines.join(' ').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+                return \`<p>\${html}</p>\`;
+              }).join('');
+            })()}</div>
           </div>
         </div>`:''}
 
@@ -2683,7 +2693,7 @@ function renderPipelineOverlay(){
         return`<div class="pipeline-step">
           <div class="pipeline-dot ${isDone?'done':isActive?'active':'pending'}">${isDone?'✓':isActive?`<div class="spinner" style="width:10px;height:10px;border-width:1.5px"></div>`:i+1}</div>
           <div><div style="font-size:13px;font-weight:${isActive?700:600};color:${isDone?'var(--green)':isActive?'var(--text)':'var(--text3)'}">${s.label}</div>
-          <div style="font-size:11px;color:var(--text3)">${isActive?detail:s.desc}</div></div>
+          <div id="${isActive?'pl-detail':''}" style="font-size:11px;color:var(--text3)">${isActive?detail:s.desc}</div></div>
         </div>`;
       }).join('')}
       <div style="margin-top:16px;padding:10px 12px;background:var(--surface2);border-radius:7px;font-size:11px;color:var(--text3)">

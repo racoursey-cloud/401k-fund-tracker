@@ -324,14 +324,17 @@ const supa = {
     }
     const now=new Date().toISOString();
     const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,cached_at:now}));
-    // resolution=ignore-duplicates: skip conflicts so partial saves still work
-    return fetch('/api/supabase/holdings_cache?on_conflict=fund_ticker',{method:'POST',headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)}).then(r=>{if(!r.ok)r.text().then(t=>console.warn('holdings_cache upsert:',r.status,t.slice(0,100)));return null;}).catch(()=>null);
+    // holdings_cache has multiple rows per fund — on_conflict=fund_ticker is wrong (not a unique key).
+    // Simple INSERT after the DELETE is the correct strategy. If delete failed, we log and skip
+    // the insert to avoid accumulating duplicate rows.
+    if(!deleted){
+      console.error(`holdings_cache: DELETE failed for ${ticker} — skipping INSERT to avoid duplicate rows. Will retry on next pipeline run.`);
+      return null;
+    }
+    return fetch('/api/supabase/holdings_cache',{method:'POST',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(rows)}).then(r=>{if(!r.ok)r.text().then(t=>console.warn('holdings_cache insert:',r.status,t.slice(0,100)));return null;}).catch(()=>null);
   },
-  // Sector mapping cache
-  async getSectorMapping(ticker){
-    const rows=await this.h.get('sector_mappings',`?ticker=eq.${ticker}&select=*`);
-    return rows?.[0]||null;
-  },
+  // Sector mapping cache — getSectorMapping removed (was used by mapTickerToSector serial loop,
+  // which was removed because init already bulk-loads all sector_mappings in one query).
   // BUG 8 FIX: was delete-then-insert; if insert failed after delete, mapping was lost.
   // Now uses upsert with on_conflict=ticker so it's atomic.
   async saveSectorMapping(ticker,sector,industry){
@@ -563,13 +566,15 @@ async function fetchTiingo(ticker){
 
 // Fetch sector ETF momentum for all 11 GICS sectors
 async function fetchSectorMomentum(){
-  const results={};
+  // Run all 11 ETF fetches concurrently — fetchTiingo returns cache instantly when market
+  // is closed, and live fetches run in parallel instead of serially with sleep(150) gaps.
   const etfs=Object.entries(GICS_SECTORS).map(([sector,d])=>({sector,etf:d.etf}));
-  for(const{sector,etf}of etfs){
-    const d=await fetchTiingo(etf);
+  const fetched=await Promise.all(etfs.map(({etf})=>fetchTiingo(etf)));
+  const results={};
+  etfs.forEach(({sector},i)=>{
+    const d=fetched[i];
     results[sector]=d?{momentum:d.momentum,mom63:d.mom63,mom21:d.mom21,riskAdj:d.riskAdj}:{momentum:5,mom63:0,mom21:0,riskAdj:5};
-    await sleep(150);
-  }
+  });
   return results;
 }
 
@@ -915,12 +920,16 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
       }
     }catch(e){console.warn('Sector scoring attempt',attempt+1,'failed:',e.message)}
   }
-  // All attempts failed — final fallback with simplified prompt
+  // All 3 attempts failed — final fallback uses a stripped-down prompt (no macro data, no headlines)
+  // asking only for the minimum valid JSON structure. Reduces token pressure and parse failure risk.
   try{
-    console.warn('Sector scoring: all 3 attempts failed — trying simplified final fallback');
+    console.warn('Sector scoring: all 3 attempts failed — trying minimal fallback prompt');
+    const minPrompt=`Score all 11 GICS sectors 1-10 for 90-day performance based on your current knowledge.
+Return ONLY valid JSON with no other text:
+{"sectorScores":{"Technology":{"score":X,"reason":"brief"},"Financials":{"score":X,"reason":"brief"},"Healthcare":{"score":X,"reason":"brief"},"Consumer Discretionary":{"score":X,"reason":"brief"},"Consumer Staples":{"score":X,"reason":"brief"},"Energy":{"score":X,"reason":"brief"},"Industrials":{"score":X,"reason":"brief"},"Materials":{"score":X,"reason":"brief"},"Utilities":{"score":X,"reason":"brief"},"Real Estate":{"score":X,"reason":"brief"},"Communication Services":{"score":X,"reason":"brief"}},"dominantTheme":"brief theme","thesis":"2-sentence summary","riskFactors":["r1"],"catalysts":["c1"],"macroStance":"mixed","quarterOutlook":"neutral"}`;
     const res=await fetch('/api/claude',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:3000,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1200,messages:[{role:'user',content:minPrompt}]})
     });
     if(res.ok){
       const data=await res.json();
@@ -944,42 +953,42 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
 //   Pass 2: Any still-unknown tickers → one batched Claude call
 // FMP API removed: server route discontinued Aug 2025 (returns 410 Gone).
 
-async function mapTickerToSector(ticker){
-  if(!ticker)return null;
-  // In-memory cache — fastest path, pre-loaded from Supabase on init
-  if(APP.sectorMappingCache[ticker])return APP.sectorMappingCache[ticker];
-  // Supabase cache — 90-day TTL, survives across sessions
-  const cached=await supa.getSectorMapping(ticker);
-  if(cached){
-    const age=(Date.now()-new Date(cached.cached_at).getTime())/86400000;
-    if(age<90){APP.sectorMappingCache[ticker]=cached.sector;return cached.sector}
-  }
-  return null; // Not cached — resolved by Claude batch classification below
-}
 
-// Batch-classify holdings with unknown sectors using Claude
+// Batch-classify holdings with unknown sectors using Claude.
+// Splits into pages of 60 and runs all pages concurrently (Promise.all) — no serial waiting.
+// Handles 200+ unknowns in one Step 5A pass: all pages fire simultaneously.
 async function classifyUnknownSectors(unknownHoldings){
   if(!unknownHoldings.length)return{};
-  const items=unknownHoldings.slice(0,40).map(h=>`${h.ticker||'?'}|${h.name||'Unknown'}`).join('\n');
-  const prompt=`Classify each of these securities into exactly one GICS sector. Valid sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Energy, Industrials, Materials, Utilities, Real Estate, Communication Services, Cash/Other.
+  const PAGE=60;
+  const pages=[];
+  for(let i=0;i<unknownHoldings.length;i+=PAGE) pages.push(unknownHoldings.slice(i,i+PAGE));
+
+  const classifyPage=async(batch)=>{
+    const items=batch.map(h=>`${h.ticker||'?'}|${h.name||'Unknown'}`).join('\n');
+    const prompt=`Classify each of these securities into exactly one GICS sector. Valid sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Energy, Industrials, Materials, Utilities, Real Estate, Communication Services, Cash/Other.
 
 Securities (ticker|name):
 ${items}
 
 Return ONLY valid JSON: {"classifications":{"TICKER":"SECTOR",...}}
 For holdings with no clear ticker, use the holding name as the key.`;
-  try{
-    const res=await fetch('/api/claude',{
-      method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:prompt}]})
-    });
-    if(!res.ok)return{};
-    const data=await res.json();
-    const text=(data.content||[]).find(b=>b.type==='text')?.text||'';
-    const clean=text.replace(/```json|```/g,'').trim();
-    const jsonMatch=clean.match(/\{[\s\S]*\}/);
-    return jsonMatch?JSON.parse(jsonMatch[0]).classifications||{}:{};
-  }catch(e){return{}}
+    try{
+      const res=await fetch('/api/claude',{
+        method:'POST',headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1200,messages:[{role:'user',content:prompt}]})
+      });
+      if(!res.ok)return{};
+      const data=await res.json();
+      const text=(data.content||[]).find(b=>b.type==='text')?.text||'';
+      const clean=text.replace(/```json|```/g,'').trim();
+      const jsonMatch=clean.match(/\{[\s\S]*\}/);
+      return jsonMatch?JSON.parse(jsonMatch[0]).classifications||{}:{};
+    }catch(e){return{}}
+  };
+
+  // All pages fire concurrently — total time = slowest single page, not sum of all pages
+  const pageResults=await Promise.all(pages.map(classifyPage));
+  return Object.assign({},...pageResults);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1119,16 +1128,16 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
     });
   });
 
-  // Pass 1 — Supabase cache warm-up (no sleep needed, no rate limit)
-  if(allHoldings.length){
-    pl(`Step 5A: Loading sector cache for ${allHoldings.length} holdings...`);
-    for(const h of allHoldings){const key=h.ticker||h.name;if(key)await mapTickerToSector(key);}
-  }
+  // Pass 1 (REMOVED) — Supabase was pre-loaded in bulk at init (?select=ticker,sector&limit=2000).
+  // Any ticker not in APP.sectorMappingCache after that bulk fetch isn't in Supabase at all.
+  // Serial per-ticker Supabase requests here were doing hundreds of round-trips for nothing.
+  // New tickers go straight to Claude batch below; results are then persisted back to Supabase.
 
-  // Pass 2 — Claude batch for anything still unmapped
-  const stillUnmapped=allHoldings.filter(h=>{const k=h.ticker||h.name;return k&&!APP.sectorMappingCache[k];});
+  // Pass 2 — Claude batch for anything not in the init preload
+  const stillUnmapped=allHoldings;  // allHoldings already filtered to only uncached tickers
   if(stillUnmapped.length){
-    pl(`Step 5A: Claude classifying ${stillUnmapped.length} unknown sectors...`);
+    const pageCount=Math.ceil(stillUnmapped.length/60);
+    pl(`Step 5A: Claude classifying ${stillUnmapped.length} unknown sectors (${pageCount} batch${pageCount>1?'es':''} in parallel)...`);
     const clsResult=await classifyUnknownSectors(stillUnmapped);
     // BUG FIX: persist Claude's classifications to Supabase so they survive across sessions.
     // Previously only stored in-memory — cold start next run re-classified everything,
@@ -1303,7 +1312,6 @@ function getTierFromModZ(modZ){
   return{label:'WEAK',cls:'t4',emoji:'⚠',color:'var(--red)',desc:'Below average for current conditions'};
 }
 
-function getTierLabel(score){return getTierFromModZ(score>=7?2:score>=5?0.5:score>=3?-0.3:-1)}
 
 // ═══════════════════════════════════════════════════════════════
 // ALLOCATION ENGINE — Risk tolerance aware (1–9 scale)

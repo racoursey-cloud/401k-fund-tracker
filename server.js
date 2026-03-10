@@ -160,21 +160,6 @@ app.get('/api/fred/*', async (req, res) => {
   }
 });
 
-// ── GET /api/bls ──────────────────────────────────────────────────────────────
-app.get('/api/bls', async (req, res) => {
-  try {
-    const seriesIds = (req.query.series || 'CUUR0000SA0,LNS14000000').split(',');
-    const year = new Date().getFullYear();
-    const r = await proxyFetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seriesid: seriesIds, startyear: String(year - 1), endyear: String(year) })
-    });
-    res.json(await r.json());
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ── GET /api/treasury ─────────────────────────────────────────────────────────
 app.get('/api/treasury', async (req, res) => {
@@ -227,32 +212,6 @@ app.get('/api/twelvedata/*', async (req, res) => {
   }
 });
 
-// ── GET /api/finnhub/* ────────────────────────────────────────────────────────
-app.get('/api/finnhub/*', async (req, res) => {
-  const subpath = req.params[0];
-  const params = new URLSearchParams(req.query);
-  params.set('token', FINNHUB_KEY);
-  const url = `https://finnhub.io/api/v1/${subpath}?${params}`;
-
-  const isNews = subpath.includes('news') || subpath.includes('press-releases');
-  const isFundamentals = subpath.includes('metric') || subpath.includes('profile2') || subpath.includes('financials');
-  const cacheKey = `fh:${subpath}:${req.query.symbol || req.query.category || ''}`;
-  const cacheTTL = isNews ? 1800000 : (isFundamentals ? 2592000000 : 0);
-
-  if (cacheTTL > 0 && finnhubCache[cacheKey] && (Date.now() - finnhubCache[cacheKey].fetchedAt) < cacheTTL) {
-    return res.json(finnhubCache[cacheKey].data);
-  }
-
-  try {
-    const r = await proxyFetch(url);
-    const data = await r.json();
-    if (cacheTTL > 0) finnhubCache[cacheKey] = { data, fetchedAt: Date.now() };
-    res.json(data);
-  } catch (e) {
-    if (finnhubCache[cacheKey]) return res.json(finnhubCache[cacheKey].data);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ── GET /api/gdelt ────────────────────────────────────────────────────────────
 app.get('/api/gdelt', async (req, res) => {
@@ -272,24 +231,6 @@ app.get('/api/gdelt', async (req, res) => {
   }
 });
 
-// ── GET /api/gnews ────────────────────────────────────────────────────────────
-app.get('/api/gnews', async (req, res) => {
-  const q = req.query.q || 'stock market';
-  try {
-    const r = await proxyFetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`);
-    const xml = await r.text();
-    const items = [];
-    const re = /<item>([\s\S]*?)<\/item>/g;
-    let m;
-    while ((m = re.exec(xml)) !== null) {
-      const get = (tag) => { const r2 = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`); const mm = m[1].match(r2); return mm ? mm[1].trim() : ''; };
-      items.push({ title: get('title'), link: get('link'), pubDate: get('pubDate'), source: get('source') });
-    }
-    res.json({ items: items.slice(0, 20) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ── SEC EDGAR proxies ─────────────────────────────────────────────────────────
 const SEC_HEADERS = { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' };

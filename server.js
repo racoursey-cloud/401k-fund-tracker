@@ -1,365 +1,388 @@
-const http = require('http');
-const https = require('https');
-const fs = require('fs');
+const express = require('express');
 const path = require('path');
-const url = require('url');
-
+const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Keys ──────────────────────────────────────────────────────────────────────
 const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY || '';
-const TIINGO_KEY    = process.env.TIINGO_KEY    || '';
-const SUPA_URL      = process.env.SUPA_URL      || '';
-const SUPA_KEY      = process.env.SUPA_KEY      || '';
-const FRED_KEY      = process.env.FRED_KEY      || '';   // Free at fredaccount.stlouisfed.org
-const FMP_KEY       = process.env.FMP_KEY       || '';   // Free at financialmodelingprep.com (250 req/day)
+const TIINGO_KEY    = process.env.TIINGO_KEY || '';
+const SUPA_URL      = process.env.SUPA_URL || '';
+const SUPA_KEY      = process.env.SUPA_KEY || '';
+const FRED_KEY      = process.env.FRED_KEY || '';
+const FMP_KEY       = process.env.FMP_KEY || '';
+const FINNHUB_KEY   = process.env.FINNHUB_KEY || '';
 
-// ── Tiingo daily price cache ─────────────────────────────────────
-// Survives page refreshes; serves stale data when 429 rate limit is hit.
-// Key: ticker symbol. Value: { data: <array>, date: 'YYYY-MM-DD' }
-const tiingoDailyCache = {};
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+// ── Middleware ─────────────────────────────────────────────────────────────────
+app.use(express.json({ limit: '5mb' }));
+app.use(express.static(path.join(__dirname)));
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => resolve(body));
-    req.on('error', reject);
-  });
+// ── In-Memory Caches ──────────────────────────────────────────────────────────
+const tiingoDailyCache = {};   // key: ticker, value: {data, date}
+const fredCache = {};          // key: seriesId, value: {data, fetchedAt}
+const finnhubNewsCache = {};   // key: query, value: {headlines, fetchedAt}
+const fmpCache = {};           // key: ticker, value: {data, fetchedAt}
+let gdeltLastCall = 0;         // enforce 1 req / 5 sec
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function todayET() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 }
 
-function proxyRequest(res, options, body) {
-  const upstream = https.request(options, upstreamRes => {
-    res.writeHead(upstreamRes.statusCode, {
-      'Content-Type': upstreamRes.headers['content-type'] || 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    });
-    upstreamRes.pipe(res);
-  });
-  upstream.on('error', err => {
-    console.error('Proxy error:', err.message);
-    if (!res.headersSent) res.writeHead(502);
-    res.end(JSON.stringify({ error: 'Proxy error', detail: err.message }));
-  });
-  if (body) upstream.write(body);
-  upstream.end();
+function isMarketOpen() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay();
+  if (day === 0 || day === 6) return false;
+  const h = et.getHours(), m = et.getMinutes();
+  const mins = h * 60 + m;
+  return mins >= 570 && mins <= 960; // 9:30 – 16:00
 }
 
-function handleCORS(res) {
-  res.writeHead(204, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, Prefer',
-  });
-  res.end();
-}
-
-async function liveHealthCheck() {
-  const results = {};
-
-  // Anthropic
-  await new Promise(resolve => {
-    if (!ANTHROPIC_KEY) { results.anthropic = { ok: false, error: 'ANTHROPIC_KEY not set' }; return resolve(); }
-    const body = JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 5, messages: [{ role: 'user', content: 'hi' }] });
-    const req = https.request({
-      hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Length': Buffer.byteLength(body) },
-    }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => {
-        if (res.statusCode === 200) { results.anthropic = { ok: true, status: 200 }; }
-        else { try { results.anthropic = { ok: false, status: res.statusCode, error: JSON.parse(d)?.error?.message || d.slice(0,120) }; } catch(e) { results.anthropic = { ok: false, status: res.statusCode, error: d.slice(0,120) }; } }
-        resolve();
-      });
-    });
-    req.on('error', err => { results.anthropic = { ok: false, error: err.message }; resolve(); });
-    req.write(body); req.end();
-  });
-
-  // Tiingo
-  await new Promise(resolve => {
-    if (!TIINGO_KEY) { results.tiingo = { ok: false, error: 'TIINGO_KEY not set' }; return resolve(); }
-    const req = https.request({
-      hostname: 'api.tiingo.com', path: '/tiingo/daily/PRPFX?token=' + TIINGO_KEY, method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    }, res => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => { results.tiingo = res.statusCode === 200 ? { ok: true } : { ok: false, status: res.statusCode, error: d.slice(0,120) }; resolve(); });
-    });
-    req.on('error', err => { results.tiingo = { ok: false, error: err.message }; resolve(); });
-    req.end();
-  });
-
-  // Supabase
-  await new Promise(resolve => {
-    if (!SUPA_URL || !SUPA_KEY) { results.supabase = { ok: false, error: 'SUPA_URL or SUPA_KEY not set' }; return resolve(); }
-    const hostname = SUPA_URL.replace('https://', '').replace('http://', '');
-    const req = https.request({
-      hostname, path: '/rest/v1/prediction_cycles?limit=1', method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY },
-    }, res => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        if (res.statusCode === 200) { results.supabase = { ok: true }; }
-        else { try { results.supabase = { ok: false, status: res.statusCode, error: JSON.parse(d)?.message || d.slice(0,120) }; } catch(e) { results.supabase = { ok: false, status: res.statusCode, error: d.slice(0,120) }; } }
-        resolve();
-      });
-    });
-    req.on('error', err => { results.supabase = { ok: false, error: err.message }; resolve(); });
-    req.end();
-  });
-
-  // FRED — live test call (fetch latest Fed Funds Rate — single observation)
-  await new Promise(resolve => {
-    if (!FRED_KEY) { results.fred = { ok: false, note: 'FRED_KEY not set — register free at fredaccount.stlouisfed.org' }; return resolve(); }
-    const fredPath = '/fred/series/observations?series_id=DFF&sort_order=desc&limit=1&api_key=' + FRED_KEY + '&file_type=json';
-    const req = https.request({
-      hostname: 'api.stlouisfed.org', path: fredPath, method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    }, res => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            const parsed = JSON.parse(d);
-            const val = parsed?.observations?.[0]?.value;
-            const date = parsed?.observations?.[0]?.date;
-            results.fred = { ok: true, status: 200, series: 'DFF', latestValue: val, latestDate: date };
-          } catch(e) {
-            results.fred = { ok: false, status: 200, error: 'Response parsed but unexpected shape — ' + d.slice(0, 80) };
-          }
-        } else {
-          try { results.fred = { ok: false, status: res.statusCode, error: JSON.parse(d)?.error_message || d.slice(0, 120) }; }
-          catch(e) { results.fred = { ok: false, status: res.statusCode, error: d.slice(0, 120) }; }
-        }
-        resolve();
-      });
-    });
-    req.on('error', err => { results.fred = { ok: false, error: err.message }; resolve(); });
-    req.end();
-  });
-
-  // FMP — live test call (profile lookup for SPY — lightweight, always available)
-  await new Promise(resolve => {
-    if (!FMP_KEY) { results.fmp = { ok: false, note: 'FMP_KEY not set — register free at financialmodelingprep.com (250 req/day)' }; return resolve(); }
-    const fmpPath = '/stable/profile?symbol=SPY&apikey=' + FMP_KEY;
-    const req = https.request({
-      hostname: 'financialmodelingprep.com', path: fmpPath, method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    }, res => {
-      let d = ''; res.on('data', c => d += c);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            const parsed = JSON.parse(d);
-            const sector = parsed?.[0]?.sector || null;
-            const name = parsed?.[0]?.companyName || null;
-            if (sector || name) {
-              results.fmp = { ok: true, status: 200, testTicker: 'SPY', sector, name };
-            } else {
-              results.fmp = { ok: false, status: 200, error: 'Response OK but empty — key may be invalid or daily limit reached' };
-            }
-          } catch(e) {
-            results.fmp = { ok: false, status: 200, error: 'Response parsed but unexpected shape — ' + d.slice(0, 80) };
-          }
-        } else {
-          try { results.fmp = { ok: false, status: res.statusCode, error: JSON.parse(d)?.message || d.slice(0, 120) }; }
-          catch(e) { results.fmp = { ok: false, status: res.statusCode, error: d.slice(0, 120) }; }
-        }
-        resolve();
-      });
-    });
-    req.on('error', err => { results.fmp = { ok: false, error: err.message }; resolve(); });
-    req.end();
-  });
-
-  return results;
-}
-
-const server = http.createServer(async (req, res) => {
-  const parsed = url.parse(req.url, true);
-  const pathname = parsed.pathname;
-
-  if (req.method === 'OPTIONS') return handleCORS(res);
-
-  // ── Health check ─────────────────────────────────────────────
-  if (pathname === '/health') {
-    const checks = await liveHealthCheck();
-    const critical = ['anthropic', 'tiingo', 'supabase'];
-    const allOk = critical.every(k => checks[k]?.ok);
-    res.writeHead(allOk ? 200 : 503, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ status: allOk ? 'ok' : 'degraded', checks }, null, 2));
-    return;
+async function proxyFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeout);
+    return res;
+  } catch (e) {
+    clearTimeout(timeout);
+    throw e;
   }
+}
 
-  // ── Anthropic / Claude ────────────────────────────────────────
-  if (pathname === '/api/claude' && req.method === 'POST') {
-    if (!ANTHROPIC_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'ANTHROPIC_KEY not set' })); return; }
-    const body = await readBody(req);
-    proxyRequest(res, {
-      hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Length': Buffer.byteLength(body) },
-    }, body);
-    return;
+// ── POST /api/claude ──────────────────────────────────────────────────────────
+app.post('/api/claude', async (req, res) => {
+  try {
+    const r = await proxyFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
+});
 
-  // ── Tiingo ────────────────────────────────────────────────────
-  if (pathname.startsWith('/api/tiingo/')) {
-    if (!TIINGO_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'TIINGO_KEY not set' })); return; }
-    const tiingoPath = pathname.replace('/api/tiingo', '') + '?' +
-      new URLSearchParams({ ...parsed.query, token: TIINGO_KEY }).toString();
+// ── GET /api/tiingo/* ─────────────────────────────────────────────────────────
+app.get('/api/tiingo/*', async (req, res) => {
+  const subpath = req.params[0];
+  const qs = new URLSearchParams(req.query).toString();
+  const url = `https://api.tiingo.com/${subpath}${qs ? '?' + qs : ''}`;
 
-    // Cache daily price requests server-side so the pipeline continues even
-    // when Tiingo's hourly limit is hit — serves previous data transparently.
-    const tickerMatch = pathname.match(/\/daily\/([^\/]+)\/prices/);
-    const cacheTicker = tickerMatch?.[1]?.toUpperCase();
-
-    if (cacheTicker) {
-      const today = todayStr();
-      const cached = tiingoDailyCache[cacheTicker];
-
-      // Already have today's data — return immediately
-      if (cached && cached.date === today) {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'HIT' });
-        res.end(JSON.stringify(cached.data));
-        return;
-      }
-
-      // Fetch from Tiingo, buffer so we can cache it
-      const upstream = https.request(
-        { hostname: 'api.tiingo.com', path: tiingoPath, method: 'GET', headers: { 'Content-Type': 'application/json' } },
-        upstreamRes => {
-          let buf = '';
-          upstreamRes.on('data', chunk => buf += chunk);
-          upstreamRes.on('end', () => {
-            if (upstreamRes.statusCode === 200) {
-              try { tiingoDailyCache[cacheTicker] = { data: JSON.parse(buf), date: today }; } catch(e) {}
-              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-              res.end(buf);
-            } else if (upstreamRes.statusCode === 429) {
-              if (cached) {
-                // Rate limited — serve stale cache transparently
-                console.warn('Tiingo 429 for ' + cacheTicker + ' — serving cached data from ' + cached.date);
-                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'STALE' });
-                res.end(JSON.stringify(cached.data));
-              } else {
-                console.warn('Tiingo 429 for ' + cacheTicker + ' — no cache, returning 429');
-                res.writeHead(429, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                res.end(buf);
-              }
-            } else {
-              res.writeHead(upstreamRes.statusCode, { 'Content-Type': upstreamRes.headers['content-type'] || 'application/json', 'Access-Control-Allow-Origin': '*' });
-              res.end(buf);
-            }
-          });
-        }
-      );
-      upstream.on('error', err => {
-        if (cached && !res.headersSent) {
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Tiingo-Cache': 'STALE' });
-          res.end(JSON.stringify(cached.data));
-        } else if (!res.headersSent) {
-          res.writeHead(502); res.end(JSON.stringify({ error: 'Tiingo proxy error', detail: err.message }));
-        }
-      });
-      upstream.end();
-      return;
+  // Check daily cache for simple ticker NAV requests
+  const tickerMatch = subpath.match(/^tiingo\/daily\/([A-Za-z]+)\/prices$/);
+  if (tickerMatch) {
+    const tk = tickerMatch[1].toUpperCase();
+    const today = todayET();
+    if (tiingoDailyCache[tk] && tiingoDailyCache[tk].date === today) {
+      return res.json(tiingoDailyCache[tk].data);
     }
-
-    // Non-price Tiingo request — pass through
-    proxyRequest(res, { hostname: 'api.tiingo.com', path: tiingoPath, method: 'GET', headers: { 'Content-Type': 'application/json' } }, null);
-    return;
   }
 
-  // ── Supabase ──────────────────────────────────────────────────
-  if (pathname.startsWith('/api/supabase/')) {
-    if (!SUPA_URL || !SUPA_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'Supabase not configured' })); return; }
-    const supaPath = '/rest/v1/' + pathname.replace('/api/supabase/', '') + (parsed.search || '');
-    const needsBody = ['POST', 'PATCH', 'PUT'].includes(req.method);
-    const body = needsBody ? await readBody(req) : null;
-    const hostname = SUPA_URL.replace('https://', '').replace('http://', '');
-    // Don't send Content-Type on DELETE — some Supabase versions reject it with no body
+  try {
+    const r = await proxyFetch(url, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${TIINGO_KEY}` }
+    });
+    if (r.status === 429) {
+      // Serve stale if available
+      if (tickerMatch) {
+        const tk = tickerMatch[1].toUpperCase();
+        if (tiingoDailyCache[tk]) {
+          return res.json({ ...tiingoDailyCache[tk].data, _stale: true });
+        }
+      }
+      return res.status(429).json({ error: 'Tiingo rate limit. Try again later.' });
+    }
+    const data = await r.json();
+    // Cache daily prices
+    if (tickerMatch) {
+      const tk = tickerMatch[1].toUpperCase();
+      tiingoDailyCache[tk] = { data, date: todayET() };
+    }
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Supabase REST proxy ───────────────────────────────────────────────────────
+function supabaseProxy(method) {
+  return async (req, res) => {
+    const subpath = req.params[0];
+    const qs = new URLSearchParams(req.query).toString();
+    const url = `${SUPA_URL}/rest/v1/${subpath}${qs ? '?' + qs : ''}`;
     const headers = {
       'apikey': SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY,
-      'Prefer': req.headers['prefer'] || 'return=minimal',
+      'Authorization': `Bearer ${SUPA_KEY}`,
+      'Prefer': req.headers['prefer'] || ''
     };
-    if (needsBody) {
+    if (method !== 'DELETE') {
       headers['Content-Type'] = 'application/json';
-      headers['Content-Length'] = Buffer.byteLength(body);
     }
-    proxyRequest(res, { hostname, path: supaPath, method: req.method, headers }, body);
-    return;
+    const opts = { method, headers };
+    if (method !== 'GET' && method !== 'DELETE' && req.body) {
+      opts.body = JSON.stringify(req.body);
+    }
+    try {
+      const r = await proxyFetch(url, opts);
+      const text = await r.text();
+      try { res.status(r.status).json(JSON.parse(text)); }
+      catch { res.status(r.status).send(text); }
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  };
+}
+app.get('/api/supabase/*', supabaseProxy('GET'));
+app.post('/api/supabase/*', supabaseProxy('POST'));
+app.patch('/api/supabase/*', supabaseProxy('PATCH'));
+app.delete('/api/supabase/*', supabaseProxy('DELETE'));
+
+// ── GET /api/fred/* ───────────────────────────────────────────────────────────
+app.get('/api/fred/*', async (req, res) => {
+  const subpath = req.params[0]; // e.g. "series/observations"
+  const params = new URLSearchParams(req.query);
+  params.set('api_key', FRED_KEY);
+  params.set('file_type', 'json');
+  const url = `https://api.stlouisfed.org/fred/${subpath}?${params}`;
+
+  // Cache check
+  const cacheKey = `${subpath}:${req.query.series_id || ''}`;
+  if (fredCache[cacheKey] && (Date.now() - fredCache[cacheKey].fetchedAt) < 86400000) {
+    return res.json(fredCache[cacheKey].data);
   }
 
-  // ── EDGAR / SEC ───────────────────────────────────────────────
-  if (pathname.startsWith('/api/edgar/')) {
-    const edgarPath = pathname.replace('/api/edgar', '') + (parsed.search || '');
-    proxyRequest(res, { hostname: 'data.sec.gov', path: edgarPath, method: 'GET', headers: { 'User-Agent': 'FundLens/3.0 contact@fundlens.app', 'Accept': 'application/json' } }, null);
-    return;
+  try {
+    const r = await proxyFetch(url);
+    const data = await r.json();
+    fredCache[cacheKey] = { data, fetchedAt: Date.now() };
+    res.json(data);
+  } catch (e) {
+    if (fredCache[cacheKey]) return res.json(fredCache[cacheKey].data);
+    res.status(500).json({ error: e.message });
   }
-  if (pathname.startsWith('/api/efts/')) {
-    const eftsPath = pathname.replace('/api/efts', '') + (parsed.search || '');
-    proxyRequest(res, { hostname: 'efts.sec.gov', path: eftsPath, method: 'GET', headers: { 'User-Agent': 'FundLens/3.0 contact@fundlens.app', 'Accept': 'application/json' } }, null);
-    return;
-  }
-  if (pathname.startsWith('/api/www4sec/')) {
-    const www4Path = pathname.replace('/api/www4sec', '') + (parsed.search || '');
-    proxyRequest(res, { hostname: 'www.sec.gov', path: www4Path, method: 'GET', headers: { 'User-Agent': 'FundLens/3.0 contact@fundlens.app', 'Accept': '*/*' } }, null);
-    return;
-  }
-
-  // ── FRED (St. Louis Fed) ───────────────────────────────────────
-  // Free API — register at fredaccount.stlouisfed.org
-  // Example: GET /api/fred/series/observations?series_id=DFF&sort_order=desc&limit=5
-  if (pathname.startsWith('/api/fred/')) {
-    if (!FRED_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'FRED_KEY not set — register free at fredaccount.stlouisfed.org' })); return; }
-    const fredPath = pathname.replace('/api/fred', '/fred') + '?' +
-      new URLSearchParams({ ...parsed.query, api_key: FRED_KEY, file_type: 'json' }).toString();
-    proxyRequest(res, { hostname: 'api.stlouisfed.org', path: fredPath, method: 'GET', headers: { 'Accept': 'application/json' } }, null);
-    return;
-  }
-
-  // ── GDELT (geopolitical/news intelligence — no API key required) ─
-  // Example: GET /api/gdelt?query=oil+conflict&mode=artlist&maxrecords=10&format=json
-  if (pathname.startsWith('/api/gdelt')) {
-    const gdeltPath = '/api/v2/doc/doc?' + new URLSearchParams({ ...parsed.query, format: 'json' }).toString();
-    proxyRequest(res, { hostname: 'api.gdeltproject.org', path: gdeltPath, method: 'GET', headers: { 'Accept': 'application/json', 'User-Agent': 'FundLens/3.0 contact@fundlens.app' } }, null);
-    return;
-  }
-
-  // ── Financial Modeling Prep (GICS sector mapping) ─────────────
-  // Free tier: 250 req/day — register at financialmodelingprep.com
-  // Example: GET /api/fmp/api/v3/profile/AAPL
-  if (pathname.startsWith('/api/fmp/')) {
-    if (!FMP_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'FMP_KEY not set — register free at financialmodelingprep.com' })); return; }
-    const fmpSubPath = pathname.replace('/api/fmp', '');
-    const fmpPath = fmpSubPath + '?' + new URLSearchParams({ ...parsed.query, apikey: FMP_KEY }).toString();
-    proxyRequest(res, { hostname: 'financialmodelingprep.com', path: fmpPath, method: 'GET', headers: { 'Accept': 'application/json' } }, null);
-    return;
-  }
-
-  // ── Frankfurter (ECB-backed forex — no key required) ─────────
-  // Example: GET /api/forex/latest?base=USD
-  if (pathname.startsWith('/api/forex')) {
-    const forexPath = pathname.replace('/api/forex', '') + (parsed.search || '');
-    proxyRequest(res, { hostname: 'api.frankfurter.dev', path: forexPath || '/v1/latest', method: 'GET', headers: { 'Accept': 'application/json' } }, null);
-    return;
-  }
-
-  // ── Serve app ─────────────────────────────────────────────────
-  const filePath = path.join(__dirname, 'fundlens_v2.html');
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(data);
-  });
 });
 
-server.listen(PORT, () => {
-  console.log(`FundLens v3 on port ${PORT}`);
-  console.log(`Keys → anthropic:${!!ANTHROPIC_KEY} tiingo:${!!TIINGO_KEY} supabase:${!!(SUPA_URL&&SUPA_KEY)} fred:${!!FRED_KEY} fmp:${!!FMP_KEY}`);
-  if (!FRED_KEY) console.log('  ℹ  FRED_KEY missing — macro will use Claude web search (still works, less structured)');
-  if (!FMP_KEY)  console.log('  ℹ  FMP_KEY missing  — sector mapping will use Claude classification (still works)');
+// ── GET /api/bls ──────────────────────────────────────────────────────────────
+app.get('/api/bls', async (req, res) => {
+  try {
+    const seriesIds = (req.query.series || 'CUUR0000SA0,LNS14000000').split(',');
+    const year = new Date().getFullYear();
+    const r = await proxyFetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seriesid: seriesIds, startyear: String(year - 1), endyear: String(year) })
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
+
+// ── GET /api/treasury ─────────────────────────────────────────────────────────
+app.get('/api/treasury', async (req, res) => {
+  try {
+    const now = new Date();
+    const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all/${yyyymm}?type=daily_treasury_yield_curve&field_tdr_date_value=${now.getFullYear()}&page&_format=csv`;
+    const r = await proxyFetch(url);
+    const text = await r.text();
+    res.type('text/csv').send(text);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/fmp/* ────────────────────────────────────────────────────────────
+app.get('/api/fmp/*', async (req, res) => {
+  const subpath = req.params[0];
+  const params = new URLSearchParams(req.query);
+  params.set('apikey', FMP_KEY);
+  const url = `https://financialmodelingprep.com/api/v3/${subpath}?${params}`;
+
+  // 30-day cache for fundamentals
+  const cacheKey = subpath;
+  if (fmpCache[cacheKey] && (Date.now() - fmpCache[cacheKey].fetchedAt) < 2592000000) {
+    return res.json(fmpCache[cacheKey].data);
+  }
+
+  try {
+    const r = await proxyFetch(url);
+    const data = await r.json();
+    fmpCache[cacheKey] = { data, fetchedAt: Date.now() };
+    res.json(data);
+  } catch (e) {
+    if (fmpCache[cacheKey]) return res.json(fmpCache[cacheKey].data);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/finnhub/* ────────────────────────────────────────────────────────
+app.get('/api/finnhub/*', async (req, res) => {
+  const subpath = req.params[0];
+  const params = new URLSearchParams(req.query);
+  params.set('token', FINNHUB_KEY);
+  const url = `https://finnhub.io/api/v1/${subpath}?${params}`;
+
+  // 30-min cache for news
+  if (subpath.includes('news') || subpath.includes('press-releases')) {
+    const cacheKey = `${subpath}:${req.query.symbol || req.query.category || ''}`;
+    if (finnhubNewsCache[cacheKey] && (Date.now() - finnhubNewsCache[cacheKey].fetchedAt) < 1800000) {
+      return res.json(finnhubNewsCache[cacheKey].data);
+    }
+    try {
+      const r = await proxyFetch(url);
+      const data = await r.json();
+      finnhubNewsCache[cacheKey] = { data, fetchedAt: Date.now() };
+      return res.json(data);
+    } catch (e) {
+      if (finnhubNewsCache[cacheKey]) return res.json(finnhubNewsCache[cacheKey].data);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  try {
+    const r = await proxyFetch(url);
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/gdelt ────────────────────────────────────────────────────────────
+app.get('/api/gdelt', async (req, res) => {
+  // Enforce 1 req / 5 sec
+  const now = Date.now();
+  if (now - gdeltLastCall < 5000) {
+    return res.status(429).json({ error: 'GDELT rate limit: 1 req per 5 seconds' });
+  }
+  gdeltLastCall = now;
+  const params = new URLSearchParams(req.query);
+  if (!params.has('mode')) params.set('mode', 'ArtList');
+  if (!params.has('format')) params.set('format', 'json');
+  if (!params.has('maxrecords')) params.set('maxrecords', '20');
+  const url = `https://api.gdeltproject.org/api/v2/doc/doc?${params}`;
+  try {
+    const r = await proxyFetch(url);
+    const text = await r.text();
+    try { res.json(JSON.parse(text)); }
+    catch { res.send(text); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/gnews ────────────────────────────────────────────────────────────
+app.get('/api/gnews', async (req, res) => {
+  const q = req.query.q || 'stock market';
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+  try {
+    const r = await proxyFetch(url);
+    const xml = await r.text();
+    // Simple XML→JSON parse for RSS items
+    const items = [];
+    const re = /<item>([\s\S]*?)<\/item>/g;
+    let m;
+    while ((m = re.exec(xml)) !== null) {
+      const get = (tag) => { const r2 = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`); const mm = m[1].match(r2); return mm ? mm[1].trim() : ''; };
+      items.push({ title: get('title'), link: get('link'), pubDate: get('pubDate'), source: get('source') });
+    }
+    res.json({ items: items.slice(0, 20) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/edgar/* ──────────────────────────────────────────────────────────
+app.get('/api/edgar/*', async (req, res) => {
+  const subpath = req.params[0];
+  const qs = new URLSearchParams(req.query).toString();
+  const url = `https://data.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  try {
+    const r = await proxyFetch(url, {
+      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
+    });
+    const text = await r.text();
+    try { res.json(JSON.parse(text)); }
+    catch { res.type('text/xml').send(text); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/efts/* ───────────────────────────────────────────────────────────
+app.get('/api/efts/*', async (req, res) => {
+  const subpath = req.params[0];
+  const qs = new URLSearchParams(req.query).toString();
+  const url = `https://efts.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  try {
+    const r = await proxyFetch(url, {
+      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/www4sec/* ────────────────────────────────────────────────────────
+app.get('/api/www4sec/*', async (req, res) => {
+  const subpath = req.params[0];
+  const qs = new URLSearchParams(req.query).toString();
+  const url = `https://www.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  try {
+    const r = await proxyFetch(url, {
+      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
+    });
+    const text = await r.text();
+    try { res.json(JSON.parse(text)); }
+    catch { res.type('text/xml').send(text); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/market-status ────────────────────────────────────────────────────
+app.get('/api/market-status', (req, res) => {
+  res.json({ open: isMarketOpen(), date: todayET() });
+});
+
+// ── GET /health ───────────────────────────────────────────────────────────────
+app.get('/health', async (req, res) => {
+  const checks = {};
+  const test = async (name, fn) => {
+    try { await fn(); checks[name] = 'ok'; } catch (e) { checks[name] = `error: ${e.message}`; }
+  };
+  await Promise.allSettled([
+    test('anthropic', () => proxyFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] })
+    }).then(r => { if (!r.ok && r.status !== 400) throw new Error(`${r.status}`); })),
+    test('tiingo', () => proxyFetch('https://api.tiingo.com/api/test', { headers: { 'Authorization': `Token ${TIINGO_KEY}` } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('supabase', () => proxyFetch(`${SUPA_URL}/rest/v1/`, { headers: { 'apikey': SUPA_KEY } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('fred', () => proxyFetch(`https://api.stlouisfed.org/fred/series?series_id=DFF&api_key=${FRED_KEY}&file_type=json`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('fmp', () => proxyFetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${FMP_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('finnhub', () => proxyFetch(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=${FINNHUB_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('gdelt', () => proxyFetch('https://api.gdeltproject.org/api/v2/doc/doc?query=market&mode=ArtList&maxrecords=1&format=json').then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('edgar', () => proxyFetch('https://efts.sec.gov/LATEST/search-index?q=test&dateRange=custom&startdt=2024-01-01&enddt=2024-01-02&forms=NPORT-P', { headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app' } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+  ]);
+  const allOk = Object.values(checks).every(v => v === 'ok');
+  res.status(allOk ? 200 : 207).json({ status: allOk ? 'healthy' : 'degraded', checks, marketOpen: isMarketOpen(), serverTime: new Date().toISOString() });
+});
+
+// ── Catch-all: serve index.html ───────────────────────────────────────────────
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.listen(PORT, () => console.log(`FundLens v3 running on port ${PORT}`));

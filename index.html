@@ -157,10 +157,10 @@ const FRED_SERIES = {
   CPIAUCSL:      'CPI YoY',
   UNRATE:        'Unemployment Rate',
   BAMLH0A0HYM2:  'HY Credit Spread',
-  GOLDAMGBD228NLBM: 'Gold Price',
+  // GOLDAMGBD228NLBM was discontinued by FRED — gold now fetched from Twelvedata in buildWorldIntelligence()
   WTISPLC:       'WTI Crude',
   NAPM:          'Manufacturing PMI',
-  NMFSL:         'Services PMI',
+  UMCSENT:       'Consumer Sentiment',  // replaces NMFSL (ISM Services PMI — not available on FRED)
   T10YIE:        'Breakeven Inflation 10Y',
   DTWEXBGS:      'USD Broad Index',
 };
@@ -614,14 +614,14 @@ function buildGDELTQueries(fredData){
   const signals = [];
 
   const dxy   = f.DTWEXBGS;
-  const gold  = f.GOLDAMGBD228NLBM;
+  const gold  = f._goldUSD ? parseFloat(f._goldUSD) : null; // from Twelvedata
   const oil   = f.WTISPLC;
   const hyCrd = f.BAMLH0A0HYM2;
   const yldCv = f.T10Y2Y;
   const fed   = f.DFF;
   const infBE = f.T10YIE;
   const mfgPM = f.NAPM;
-  const svcPM = f.NMFSL;
+  const svcPM = f.UMCSENT; // Consumer Sentiment (replaces unavailable ISM Services PMI)
 
   // Dollar weakness → international rotation story
   if(dxy !== null && dxy < 100)
@@ -681,10 +681,10 @@ function buildGDELTQueries(fredData){
     signals.push({priority:7, label:'Manufacturing contraction',
       query:`manufacturing contraction industrial orders trade tariffs supply chain ${yr}`});
 
-  // Services PMI contraction (broader economy)
-  if(svcPM !== null && svcPM < 50)
-    signals.push({priority:8, label:'Services contraction',
-      query:`services sector slowdown consumer spending jobs economy recession ${yr}`});
+  // Consumer Sentiment weak (replaces Services PMI — scale ~50-100, low = pessimistic consumers)
+  if(svcPM !== null && svcPM < 65)
+    signals.push({priority:8, label:'Weak consumer sentiment',
+      query:`consumer confidence spending weakness recession fears consumer discretionary ${yr}`});
 
   // Always include a geopolitical wildcard if signals are sparse
   signals.push({priority:3, label:'Geopolitical baseline',
@@ -727,7 +727,7 @@ function buildGDELTQueries(fredData){
 // NOTE: sectorMomentum is NOT used inside this function — GDELT queries are built
 // from FRED signals only. The parameter was removed to avoid confusion.
 async function buildWorldIntelligence(setPipelineDetail){
-  setPipelineDetail('Fetching FRED economic data (11 series in parallel)...');
+  setPipelineDetail('Fetching FRED economic data + live gold price + Treasury yields...');
   console.group('Step 1 — World Intelligence');
   
   // Fetch all FRED series in parallel — drops from ~10s sequential to ~1s
@@ -737,6 +737,31 @@ async function buildWorldIntelligence(setPipelineDetail){
   fredKeys.forEach((k,i)=>{
     fredData[k]=fredResults[i].status==='fulfilled'?fredResults[i].value:null;
   });
+
+  // Gold price — FRED discontinued GOLDAMGBD228NLBM; fetch live from Twelvedata instead
+  try{
+    const gr=await fetch('/api/twelvedata/quote?symbol=XAU%2FUSD');
+    const gd=await gr.json();
+    if(gd?.close){fredData._goldUSD=parseFloat(gd.close).toFixed(2);console.log(`Gold (Twelvedata): $${fredData._goldUSD}`);}
+  }catch(e){console.warn('Gold fetch failed:',e.message);}
+
+  // Treasury yield curve — returns CSV, parse to extract key tenors
+  try{
+    const tr=await fetch('/api/treasury');
+    const csv=await tr.text();
+    const lines=csv.trim().split('\n');
+    if(lines.length>=2){
+      const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());
+      const vals=lines[1].split(',');
+      const row={};
+      headers.forEach((h,i)=>{row[h]=vals[i]?.trim();});
+      // Pull the key tenors used by analysts
+      if(row['2 Yr']) fredData._t2y=parseFloat(row['2 Yr']);
+      if(row['10 Yr']) fredData._t10y=parseFloat(row['10 Yr']);
+      if(row['30 Yr']) fredData._t30y=parseFloat(row['30 Yr']);
+      console.log(`Treasury (live): 2Y=${fredData._t2y}% 10Y=${fredData._t10y}% 30Y=${fredData._t30y}%`);
+    }
+  }catch(e){console.warn('Treasury yield curve fetch failed:',e.message);}
   
   const fredAvailable=Object.values(fredData).filter(v=>v!==null).length;
   console.log(`FRED total: ${fredAvailable}/${fredKeys.length} series fetched successfully`);
@@ -773,6 +798,14 @@ async function scoreSectorsWithClaude(worldData, sectorMomentum){
     return v!==null?`${label}: ${v}`:null;
   }).filter(Boolean).join('\n');
 
+  // Append supplemental live data (gold, treasury) that isn't in FRED_SERIES
+  const liveSupplemental=[];
+  if(fredData._goldUSD) liveSupplemental.push(`Gold Price (live): $${fredData._goldUSD}/oz`);
+  if(fredData._t2y!=null) liveSupplemental.push(`Treasury 2Y Yield (live): ${fredData._t2y}%`);
+  if(fredData._t10y!=null) liveSupplemental.push(`Treasury 10Y Yield (live): ${fredData._t10y}%`);
+  if(fredData._t30y!=null) liveSupplemental.push(`Treasury 30Y Yield (live): ${fredData._t30y}%`);
+  const supplementalBlock=liveSupplemental.length?'\n'+liveSupplemental.join('\n'):'';
+
   // Format sector momentum
   const momentumSummary=Object.entries(sectorMomentum).map(([sector,d])=>
     `${sector} (${GICS_SECTORS[sector]?.etf}): 63d momentum ${d.mom63>0?'+':''}${d.mom63}%, 21d ${d.mom21>0?'+':''}${d.mom21}%`
@@ -789,8 +822,10 @@ async function scoreSectorsWithClaude(worldData, sectorMomentum){
 
   const prompt=`You are a quantitative portfolio strategist. Today is ${today}. Based on the data below, score each GICS sector for 90-day forward performance and generate an investment thesis.
 
-=== FRED ECONOMIC DATA (latest readings) ===
+=== FRED ECONOMIC DATA (monthly series lag 30-68 days; daily series lag 1-8 days) ===
+Note: Daily series (WTI Crude, HY Spreads, USD Index) can lag up to 8 days. If the geopolitical headlines below clearly contradict a FRED value — especially for commodity prices or spreads — trust the headlines as more current and adjust your thesis accordingly.
 ${fredSummary||'FRED data unavailable — use your knowledge of current conditions'}
+${supplementalBlock}
 
 === SECTOR ETF MOMENTUM (last 63 trading days) ===
 ${momentumSummary}

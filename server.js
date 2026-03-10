@@ -183,7 +183,18 @@ app.get('/api/treasury', async (req, res) => {
     const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all/${yyyymm}?type=daily_treasury_yield_curve&field_tdr_date_value=${now.getFullYear()}&page&_format=csv`;
     const r = await proxyFetch(url);
-    res.type('text/csv').send(await r.text());
+    const csv = await r.text();
+    // Parse CSV to JSON — Treasury returns rows newest-first
+    const lines = csv.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) return res.status(502).json({ error: 'Treasury returned empty data' });
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(',');
+      const row = {};
+      headers.forEach((h, i) => { row[h] = vals[i]?.trim() || null; });
+      return row;
+    });
+    res.json({ updated: rows[0]?.Date || null, rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

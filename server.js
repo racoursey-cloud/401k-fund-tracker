@@ -21,6 +21,8 @@ const tiingoDailyCache = {};
 const fredCache = {};
 const finnhubCache = {};     // 30min for news, 30d for fundamentals/metrics
 const twelvedataCache = {};
+const treasuryCache   = {};  // 24h TTL — Treasury yields update once daily
+const rssCache        = {};  // 30min TTL — news headlines
 let gdeltLastCall = 0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -163,13 +165,16 @@ app.get('/api/fred/*', async (req, res) => {
 
 // ── GET /api/treasury ─────────────────────────────────────────────────────────
 app.get('/api/treasury', async (req, res) => {
+  const TREASURY_TTL = 86400000; // 24h — yields update once daily
+  if (treasuryCache.data && (Date.now() - treasuryCache.fetchedAt) < TREASURY_TTL) {
+    return res.json(treasuryCache.data);
+  }
   try {
     const now = new Date();
     const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all/${yyyymm}?type=daily_treasury_yield_curve&field_tdr_date_value=${now.getFullYear()}&page&_format=csv`;
     const r = await proxyFetch(url);
     const csv = await r.text();
-    // Parse CSV to JSON — Treasury returns rows newest-first
     const lines = csv.trim().split('\n').filter(l => l.trim());
     if (lines.length < 2) return res.status(502).json({ error: 'Treasury returned empty data' });
     const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
@@ -179,8 +184,58 @@ app.get('/api/treasury', async (req, res) => {
       headers.forEach((h, i) => { row[h] = vals[i]?.trim() || null; });
       return row;
     });
-    res.json({ updated: rows[0]?.Date || null, rows });
+    const payload = { updated: rows[0]?.Date || null, rows };
+    treasuryCache.data = payload;
+    treasuryCache.fetchedAt = Date.now();
+    res.json(payload);
   } catch (e) {
+    if (treasuryCache.data) return res.json(treasuryCache.data); // serve stale on error
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/rss ──────────────────────────────────────────────────────────────
+// Proxies RSS/Atom feeds from whitelisted financial news sources.
+// Returns parsed headlines array: [{title, url, published}]
+const RSS_WHITELIST = [
+  'feeds.content.dowjones.io',   // MarketWatch
+  'search.cnbc.com',             // CNBC
+  'feeds.a.dj.com',              // Dow Jones
+  'rss.cnn.com',                 // CNN Business (fallback)
+];
+app.get('/api/rss', async (req, res) => {
+  const feedUrl = req.query.url;
+  if (!feedUrl) return res.status(400).json({ error: 'Missing url param' });
+  let hostname;
+  try { hostname = new URL(feedUrl).hostname; } catch { return res.status(400).json({ error: 'Invalid url' }); }
+  if (!RSS_WHITELIST.some(h => hostname === h || hostname.endsWith('.' + h))) {
+    return res.status(403).json({ error: 'Feed host not whitelisted' });
+  }
+  const cacheKey = 'rss:' + feedUrl;
+  if (rssCache[cacheKey] && (Date.now() - rssCache[cacheKey].fetchedAt) < 1800000) { // 30min
+    return res.json(rssCache[cacheKey].data);
+  }
+  try {
+    const r = await proxyFetch(feedUrl, { headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app' } });
+    const xml = await r.text();
+    // Parse RSS/Atom — extract titles and links
+    const items = [];
+    const itemRe = /<item[\s>]([\s\S]*?)<\/item>/gi;
+    const entryRe = /<entry[\s>]([\s\S]*?)<\/entry>/gi;
+    const extract = (block) => {
+      const title = (block.match(/<title[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/i) || [])[1]?.trim() || '';
+      const link  = (block.match(/<link[^>]*href="([^"]+)"/i) || block.match(/<link[^>]*>(https?[^<]+)/i) || [])[1]?.trim() || '';
+      const pub   = (block.match(/<pubDate>(.*?)<\/pubDate>/i) || block.match(/<published>(.*?)<\/published>/i) || [])[1]?.trim() || '';
+      if (title && title.length > 10) items.push({ title: title.replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>'), url: link, published: pub });
+    };
+    let m;
+    while ((m = itemRe.exec(xml)) !== null) extract(m[1]);
+    while ((m = entryRe.exec(xml)) !== null) extract(m[1]);
+    const payload = { items: items.slice(0, 20), source: hostname };
+    rssCache[cacheKey] = { data: payload, fetchedAt: Date.now() };
+    res.json(payload);
+  } catch (e) {
+    if (rssCache[cacheKey]) return res.json(rssCache[cacheKey].data);
     res.status(500).json({ error: e.message });
   }
 });
@@ -198,7 +253,7 @@ app.get('/api/twelvedata/*', async (req, res) => {
   params.set('apikey', TWELVEDATA_KEY);
   const url = `https://api.twelvedata.com/${subpath}?${params}`;
   const cacheKey = `td:${subpath}:${req.query.symbol || ''}`;
-  if (twelvedataCache[cacheKey] && (Date.now() - twelvedataCache[cacheKey].fetchedAt) < 2592000000) {
+  if (twelvedataCache[cacheKey] && (Date.now() - twelvedataCache[cacheKey].fetchedAt) < 86400000) {   // 24h — gold moves $50-100/day
     return res.json(twelvedataCache[cacheKey].data);
   }
   try {

@@ -201,28 +201,33 @@ const SEED = {
   HRAUX:{composite:3.0,roi:-2.0,tier:'NEUTRAL'},FSPGX:{composite:3.8,roi:-1.5,tier:'NEUTRAL'},
 };
 
-// Five independent scoring factors — all carry real signal.
-// holdingsCoverage replaces returnScore (which double-counted worldThesis).
-// managerQuality now uses actual Claude-assessed scores, not a hardcoded 5.0.
-// Weights are auto-normalized at runtime — they don't have to sum to exactly 100 here,
-// but 100 is the target users will see in Settings.
+// ── 4-Factor Scoring Model ─────────────────────────────────────────────────
+// holdingsCoverage removed — it penalised data availability, not fund quality.
+// mandateScore replaces it: Claude scores each fund's investment mandate directly
+// against current macro, giving 100% fund coverage with no EDGAR dependency.
 //
-// Blueprint default weights (from v3 research):
-//   Trend (worldThesis)       35% — primary signal: thesis × holdings
-//   Foundations (managerQuality) 22% — management quality & company fundamentals
-//   Room to Run (riskAdj)     18% — Sharpe ratio, return quality vs volatility
-//   Safety Net (holdingsCoverage) 15% — how much of the fund we can actually see
-//   Market Feel (momentum)    10% — trailing price momentum, last signal priority
-const DEFAULT_WEIGHTS = {worldThesis:35, managerQuality:22, riskAdj:18, holdingsCoverage:15, momentum:10};
+// Blueprint weights (v3.1):
+//   Macro Fit (mandateScore)  40% — Claude: how well does this fund's mandate fit NOW
+//   Market Feel (momentum)    25% — Tiingo: trailing 63-day price momentum
+//   Room to Run (riskAdj)     20% — Tiingo: Sharpe ratio quality vs volatility
+//   Foundations (managerQuality) 15% — Claude: management quality + expense ratio
+const DEFAULT_WEIGHTS = {mandateScore:40, momentum:25, riskAdj:20, managerQuality:15};
 
-// Plain-English display names for the 5 scoring factors.
-// Internal keys stay as-is throughout the codebase — only the UI uses these labels.
+// RSS news feed URLs — Tier 1 financial news sources
+// Fetched via /api/rss proxy (CORS-safe), 30-min server cache
+const RSS_FEEDS = [
+  {url:'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', label:'CNBC Markets'},
+  {url:'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258', label:'CNBC Economy'},
+  {url:'https://feeds.content.dowjones.io/public/rss/mw_topstories',                          label:'MarketWatch'},
+  {url:'https://feeds.content.dowjones.io/public/rss/mw_marketpulse',                         label:'MarketWatch Pulse'},
+];
+
+// Plain-English display names for the 4 scoring factors.
 const FACTOR_LABELS = {
-  worldThesis:      {label:'Follow the Trend',    desc:'How well this fund is positioned for current world conditions — sector outlook × actual holdings'},
-  managerQuality:   {label:'Foundations',          desc:'Management team quality, fund stability, parent company reputation, and fee structure'},
-  riskAdj:          {label:'Room to Run',          desc:'Return quality relative to risk (Sharpe ratio) — how much upside vs. volatility'},
-  holdingsCoverage: {label:'Safety Net',           desc:'How much of this fund\'s value we can analyze — low coverage means less confident scores'},
-  momentum:         {label:'Market Feel',          desc:'Recent price trend (63-day momentum) — the market\'s current vote on this fund'},
+  mandateScore:   {label:'Macro Fit',    desc:'How well this fund\'s investment mandate aligns with current macro conditions — scored directly by AI'},
+  managerQuality: {label:'Foundations',  desc:'Management team quality, fund stability, parent company reputation, and fee structure'},
+  riskAdj:        {label:'Room to Run',  desc:'Return quality relative to risk (Sharpe ratio) — how much upside vs. volatility'},
+  momentum:       {label:'Market Feel',  desc:'Recent price trend (63-day momentum) — the market\'s current vote on this fund'},
 };
 
 // World data freshness: how many minutes before FRED+GDELT is considered stale.
@@ -268,6 +273,12 @@ let APP = {
   sectorMappingCache:{},  // ticker → sector (in-memory, also Supabase)
   diversificationMode:false, // portfolio tab toggle
   applyLens:false,           // opt-in per run — applies marketLens keywords to Claude prompt
+  // Mandate scoring (v3.1) — replaces holdingsCoverage
+  mandateScores:{},          // ticker → {mandateScore, roi, reasoning}
+  // Expense ratios — lightweight, fetched once via Claude web search
+  expenseRatios:{},          // ticker → {gross, net, note, fetchedAt}
+  // INDPRO tracking for YoY comparison
+  prevINDPRO:null,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -372,6 +383,29 @@ const supa = {
   },
   async updateFundPrediction(id,updates){
     return fetch(`/api/supabase/fund_predictions?id=eq.${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(updates)}).then(r=>r.ok).catch(()=>false);
+  },
+  // Expense ratios — 90-day cache in fund_profiles table
+  async getExpenseRatio(ticker){
+    const rows=await this.h.get('fund_profiles',`?ticker=eq.${ticker}&select=ticker,expense_gross,expense_net,expense_note,fetched_at`);
+    if(!rows?.[0]?.ticker) return null;
+    const row=rows[0];
+    const age=(Date.now()-new Date(row.fetched_at||0).getTime())/86400000;
+    if(age>90) return null; // stale
+    return{gross:row.expense_gross,net:row.expense_net,note:row.expense_note,fetchedAt:row.fetched_at};
+  },
+  async saveExpenseRatios(ratios, now){
+    const rows=Object.entries(ratios).map(([ticker,d])=>({
+      ticker,
+      expense_gross:d.gross||null,
+      expense_net:d.net||null,
+      expense_note:d.note||null,
+      fetched_at:now,
+    }));
+    return fetch('/api/supabase/fund_profiles?on_conflict=ticker',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify(rows)
+    }).then(r=>{if(!r.ok)r.text().then(t=>console.warn('fund_profiles upsert:',r.status,t.slice(0,100)));return null;}).catch(()=>null);
   },
 };
 
@@ -702,11 +736,19 @@ function buildGDELTQueries(fredData){
       query:`oil demand slowdown China economy global growth industrial activity ${yr}`});
 
   // Industrial Production contraction (replaces discontinued NAPM/Manufacturing PMI)
-  // INDPRO is indexed ~2017=100; year-over-year <0 indicates industrial contraction
-  if(indPro !== null && indPro < 100)
+  // INDPRO is indexed ~2017=100. The absolute level (e.g. 103) tells us nothing about
+  // direction. We need YoY change — but FRED returns only the most recent observation.
+  // Proxy: if INDPRO < 101 (near-flat vs 2017 base) treat as weak industrial environment.
+  // More accurate: compare to prior observations — stored in APP.prevINDPRO across runs.
+  const prevINDPRO = typeof APP !== 'undefined' ? APP.prevINDPRO : null;
+  const indProYoY = (indPro !== null && prevINDPRO !== null) ? indPro - prevINDPRO : null;
+  if(indProYoY !== null && indProYoY < -0.5)
     signals.push({priority:7, label:'Industrial production contraction',
       query:`manufacturing contraction industrial orders trade tariffs supply chain ${yr}`});
-  else if(indPro !== null && indPro > 104)
+  else if(indPro !== null && indPro < 101.5)
+    signals.push({priority:5, label:'Flat industrial output',
+      query:`manufacturing activity industrial output stagnation capex spending ${yr}`});
+  else if(indProYoY !== null && indProYoY > 1.5)
     signals.push({priority:5, label:'Strong industrial output',
       query:`manufacturing expansion industrial activity capex spending ${yr}`});
 
@@ -793,6 +835,9 @@ async function buildWorldIntelligence(setPipelineDetail){
   console.log(`FRED total: ${fredAvailable}/${fredKeys.length} series fetched successfully`);
   if(fredAvailable===0) console.error('FRED: 0 series fetched — check FRED_KEY in Railway /health endpoint');
   
+  // Store INDPRO for YoY comparison on next run
+  if(fredData.INDPRO && typeof APP !== 'undefined') APP.prevINDPRO = fredData.INDPRO;
+
   // Build adaptive GDELT queries from FRED signals + sector momentum divergence
   const gdeltQueries = buildGDELTQueries(fredData);
   
@@ -806,9 +851,37 @@ async function buildWorldIntelligence(setPipelineDetail){
     .filter((h,i,arr)=>arr.indexOf(h)===i).slice(0,28);
   console.log(`GDELT total: ${allHeadlines.length} unique headlines collected`);
   if(allHeadlines.length===0) console.error('GDELT: 0 headlines — API may be rate-limited or unreachable');
+
+  // ── Tier 1 RSS news feeds (CNBC + MarketWatch) ─────────────────
+  // Fetched in parallel — each has 30-min server-side cache.
+  // Headlines are deduplicated and prepended to the GDELT set.
+  setPipelineDetail('Fetching Tier 1 news: CNBC + MarketWatch RSS...');
+  const rssHeadlines = [];
+  try {
+    const rssResults = await Promise.allSettled(
+      RSS_FEEDS.map(f => fetch(`/api/rss?url=${encodeURIComponent(f.url)}`).then(r => r.ok ? r.json() : null))
+    );
+    rssResults.forEach((r, i) => {
+      if(r.status==='fulfilled' && r.value?.items?.length) {
+        const source = RSS_FEEDS[i].label;
+        r.value.items.slice(0, 6).forEach(item => {
+          const h = `[${source}] ${item.title}`;
+          if(!rssHeadlines.includes(h)) rssHeadlines.push(h);
+        });
+        console.log(`RSS ${source}: ${r.value.items.length} items`);
+      }
+    });
+    console.log(`RSS total: ${rssHeadlines.length} headlines from Tier 1 sources`);
+  } catch(e) { console.warn('RSS fetch failed:', e.message); }
+
+  // Merge: RSS first (more current), then GDELT, deduplicate
+  const mergedHeadlines = [...rssHeadlines, ...allHeadlines]
+    .filter((h, i, arr) => arr.indexOf(h) === i)
+    .slice(0, 36);
+
   console.groupEnd();
   
-  return{fredData, headlines:allHeadlines, fredAvailable, headlineCount:allHeadlines.length};
+  return{fredData, headlines:mergedHeadlines, rssHeadlines, gdeltHeadlines:allHeadlines, fredAvailable, headlineCount:mergedHeadlines.length};
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -946,7 +1019,168 @@ Return ONLY valid JSON with no other text:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GICS SECTOR MAPPING — Supabase cache + Claude batch classification
+// FUND MANDATE SCORING — New core scoring function (v3.1)
+// ═══════════════════════════════════════════════════════════════
+// Replaces holdingsCoverage in the composite formula.
+// Claude scores each fund's investment mandate vs current macro conditions.
+// 100% fund coverage — no EDGAR dependency. ROI predictions come from this
+// same call. Holdings data (when available) is passed as supplemental context.
+//
+// Cached: fresh every run since mandate scores depend on current macro.
+// Token budget: 22 funds × ~90 tokens = ~2000 tokens output. max_tokens: 2200.
+async function scoreFundMandates(funds, worldData, sectorScores, fundsWithQuantContext) {
+  const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const{fredData, headlines} = worldData || {};
+
+  // Build compact macro summary for the prompt
+  const macroLines = [];
+  if(fredData) {
+    if(fredData.DFF != null)        macroLines.push(`Fed Funds Rate: ${fredData.DFF}%`);
+    if(fredData.T10Y2Y != null)     macroLines.push(`Yield Curve (10Y-2Y): ${fredData.T10Y2Y>0?'+':''}${fredData.T10Y2Y}`);
+    if(fredData._t10y != null)      macroLines.push(`10Y Treasury: ${fredData._t10y}%`);
+    if(fredData.BAMLH0A0HYM2 != null) macroLines.push(`HY Credit Spread: ${fredData.BAMLH0A0HYM2}%`);
+    if(fredData.DTWEXBGS != null)   macroLines.push(`USD Broad Index: ${fredData.DTWEXBGS}`);
+    if(fredData._goldUSD)           macroLines.push(`Gold: $${fredData._goldUSD}/oz`);
+    if(fredData.DCOILWTICO != null) macroLines.push(`WTI Crude: $${fredData.DCOILWTICO}/bbl`);
+    if(fredData.CPIAUCSL != null)   macroLines.push(`CPI: ${fredData.CPIAUCSL}%`);
+    if(fredData.T10YIE != null)     macroLines.push(`Breakeven Inflation 10Y: ${fredData.T10YIE}%`);
+    if(fredData.UMCSENT != null)    macroLines.push(`Consumer Sentiment: ${fredData.UMCSENT}`);
+  }
+
+  // Add sector score summary
+  const sectorBlock = sectorScores
+    ? Object.entries(sectorScores)
+        .sort((a,b) => b[1].score - a[1].score)
+        .map(([s,d]) => `${s}: ${d.score}/10`)
+        .join(', ')
+    : 'Sector scores unavailable';
+
+  // Add dominant theme if available
+  const theme = APP.dominantTheme || APP.investmentThesis?.dominantTheme || '';
+
+  // Build fund list with any available quantitative context + alerts
+  const fundLines = funds.map(f => {
+    const alert = ALERTS[f.ticker];
+    const qc = fundsWithQuantContext?.[f.ticker];
+    let line = `${f.ticker} | ${f.name}`;
+    if(alert) line += ` | ⚠ ${alert}`;
+    if(qc?.worldThesisScore) line += ` | Holdings-weighted sector score: ${qc.worldThesisScore.toFixed(1)}/10`;
+    if(qc?.holdingsCoverage) line += ` | Holdings coverage: ${(qc.holdingsCoverage*10).toFixed(0)}%`;
+    return line;
+  }).join('\n');
+
+  // Recent headlines (top 12, mixing RSS + GDELT)
+  const headlineSummary = (headlines||[]).slice(0,12).map((h,i)=>`${i+1}. ${h}`).join('\n');
+
+  const prompt = `You are a quantitative portfolio analyst. Today is ${today}.
+
+MACRO ENVIRONMENT:
+${macroLines.join('\n') || 'Use your current knowledge of market conditions.'}
+${theme ? `\nDominant Theme: ${theme}` : ''}
+
+GICS SECTOR SCORES (90-day outlook, 1-10):
+${sectorBlock}
+
+RECENT MARKET HEADLINES:
+${headlineSummary || 'No headlines available — use your current knowledge.'}
+
+TASK: Score each mutual fund's investment mandate against the current macro environment.
+
+mandateScore (1-10):
+10 = Fund's mandate directly captures dominant macro themes (e.g. gold fund when gold surges)
+8-9 = Strong alignment — fund's focus areas benefit meaningfully from current conditions
+6-7 = Moderate fit — mixed exposure, some tailwinds and headwinds
+4-5 = Neutral — fund is relatively environment-agnostic (e.g. broad index in flat market)
+2-3 = Headwinds — fund's focus areas face current macro challenges
+1 = Poor fit — fund mandate directly opposes current conditions
+
+roi: 90-day total return estimate in %. Be specific. Use negatives for expected losses.
+Range guide: excellent conditions → +6 to +12%, good → +2 to +6%, neutral → -1 to +2%, headwinds → -5 to -1%, severe → -10 to -5%.
+
+reasoning: 1 sentence tying the specific macro condition(s) to this fund's mandate.
+
+FUNDS TO SCORE:
+${fundLines}
+
+Return ONLY valid JSON — no markdown, no preamble:
+{"scores":{"TICKER":{"mandateScore":N,"roi":X.X,"reasoning":"1 sentence"}}}`;
+
+  for(let attempt=0; attempt<3; attempt++){
+    try{
+      if(attempt>0) await sleep(attempt*12000);
+      const res = await fetch('/api/claude', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+        body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:2200, messages:[{role:'user',content:prompt}]})
+      });
+      if(res.status===429){console.warn('Rate limit on mandate scoring, retrying...');continue;}
+      if(!res.ok) break;
+      const data = await res.json();
+      const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+      const clean = text.replace(/```json|```/g,'').trim();
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if(!jsonMatch){console.warn(`Mandate scoring attempt ${attempt+1}: no JSON`);continue;}
+      const parsed = JSON.parse(jsonMatch[0]);
+      const scores = parsed.scores || {};
+      const count = Object.keys(scores).length;
+      if(count >= Math.floor(funds.length * 0.7)) {
+        console.log(`Mandate scoring: scored ${count}/${funds.length} funds`);
+        return scores;
+      }
+      console.warn(`Mandate scoring attempt ${attempt+1}: only ${count}/${funds.length} funds scored`);
+    }catch(e){console.warn('Mandate scoring attempt',attempt+1,'failed:',e.message);}
+  }
+  console.error('Mandate scoring: all attempts failed — composite will use formula fallback');
+  return null;
+}
+
+// Expense ratio: fetch once via Claude web search, cache in Supabase 90 days
+// Shows in fund detail panel as a hover tooltip — does NOT block the pipeline.
+async function fetchExpenseRatios(funds) {
+  const needed = [];
+  for(const f of funds) {
+    if(APP.expenseRatios[f.ticker]) continue; // in-memory hit
+    try {
+      const cached = await supa.getExpenseRatio(f.ticker);
+      if(cached) { APP.expenseRatios[f.ticker] = cached; continue; }
+    } catch(e) {}
+    needed.push(f);
+  }
+  if(!needed.length) return;
+
+  const list = needed.map(f=>`${f.ticker} (${f.name})`).join(', ');
+  const prompt = `For each mutual fund below, return its current gross expense ratio as a decimal (e.g. 0.0075 for 0.75%). If a fee waiver exists, note both gross and net.
+
+Funds: ${list}
+
+Return ONLY valid JSON: {"ratios":{"TICKER":{"gross":0.XXXX,"net":0.XXXX,"note":"optional brief note"}}}`;
+
+  try {
+    const res = await fetch('/api/claude',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001', max_tokens:800,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(!res.ok) return;
+    const data = await res.json();
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    const clean = text.replace(/```json|```/g,'').trim();
+    const m = clean.match(/\{[\s\S]*\}/);
+    if(!m) return;
+    const ratios = JSON.parse(m[0]).ratios || {};
+    const now = new Date().toISOString();
+    Object.entries(ratios).forEach(([ticker,d])=>{
+      APP.expenseRatios[ticker] = {...d, fetchedAt:now};
+    });
+    // Save to Supabase in background
+    supa.saveExpenseRatios(ratios, now).catch(()=>{});
+    console.log(`Expense ratios: fetched for ${Object.keys(ratios).length} funds`);
+  } catch(e) { console.warn('Expense ratio fetch failed:', e.message); }
+}
 // ═══════════════════════════════════════════════════════════════
 // Sector classifications resolved in two passes:
 //   Pass 1: In-memory cache, then Supabase (90-day TTL) — fast path for known tickers
@@ -1069,7 +1303,7 @@ Return ONLY valid JSON — no markdown:
     const res=await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1200,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:prompt}]})
     });
     if(!res.ok){console.warn('Manager scoring Claude call failed:',res.status);return;}
     const data=await res.json();
@@ -1098,14 +1332,13 @@ Return ONLY valid JSON — no markdown:
     needed.forEach(f=>{APP.managerScores[f.ticker]={score:5,reasoning:'Assessment unavailable',cachedAt:now}});
   }
 }
-async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoData, sectorMomentum, weights, setDetail){
-  // Auto-normalize weights to sum to 1.0 — protects composite formula
-  // if user has weights that don't sum to 100.
+async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoData, sectorMomentum, weights, setDetail, mandateScores){
+  // Auto-normalize weights to sum to 1.0
   const rawW=weights||DEFAULT_WEIGHTS;
   const wTotal=Object.values(rawW).reduce((s,v)=>s+v,0);
   const W=wTotal>0
     ? Object.fromEntries(Object.entries(rawW).map(([k,v])=>[k,v/wTotal]))
-    : {worldThesis:0.35,momentum:0.20,riskAdj:0.15,managerQuality:0.15,holdingsCoverage:0.15};
+    : {mandateScore:0.40,momentum:0.25,riskAdj:0.20,managerQuality:0.15};
 
   const results=[];
   const pl=setDetail||(()=>{}); // pipeline detail callback — safe no-op if not provided
@@ -1165,24 +1398,29 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
     const td=tiingoData[fund.ticker]||null;
 
     if(!holdings.length){
-      // No holdings — fall back to seed scores + Tiingo where available.
-      // holdingsCoverage = 0 for no-holdings funds (penalizes them appropriately).
+      // No holdings — use mandate score + Tiingo where available.
       const seed=SEED[fund.ticker]||{macro:5,momentum:5,riskAdj:5,roi:0};
       const momentum=td?.momentum||seed.momentum||5;
       const riskAdj=td?.riskAdj||seed.riskAdj||5;
-      const worldThesisScore=seed.macro||5;
       const managerQuality=APP.managerScores[fund.ticker]?.score||5;
-      const holdingsCoverage=0; // No holdings data at all
-      const roi=predictROI(worldThesisScore,momentum,riskAdj);
+      // mandateScore from Claude or fall back to seed
+      const mandateData = mandateScores?.[fund.ticker];
+      const mandateScore = mandateData?.mandateScore ?? seed.macro ?? 5;
+      const mandateReasoning = mandateData?.reasoning || '';
+      // ROI: Claude-primary, formula fallback
+      const roi = mandateData?.roi ?? predictROI(mandateScore, momentum, riskAdj);
+      // worldThesisScore informational only (no holdings = N/A)
+      const worldThesisScore = seed.macro || 5;
       results.push({
-        ticker:fund.ticker,name:fund.name,
-        composite:5,roi,
-        worldThesisScore,momentum,riskAdj,managerQuality,holdingsCoverage,
+        ticker:fund.ticker, name:fund.name,
+        composite:5, roi:+parseFloat(roi).toFixed(2),
+        mandateScore:+mandateScore.toFixed(2), mandateReasoning,
+        worldThesisScore, momentum, riskAdj, managerQuality,
+        holdingsCoverage:0, // informational — not in composite
         nav:td?.nav||null,
-        sectorBreakdown:{},sectorScore:worldThesisScore,
-        alert:ALERTS[fund.ticker]||null,holdings:null,
-        modZ:0,tier:null,
-        _concentrationPenalty:0,
+        sectorBreakdown:{}, sectorScore:worldThesisScore,
+        alert:ALERTS[fund.ticker]||null, holdings:null,
+        modZ:0, tier:null, _concentrationPenalty:0,
       });
       continue;
     }
@@ -1198,13 +1436,11 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
       }
     });
 
-    // Holdings Coverage Score — what % of this fund's value do we have sector data for?
-    // Scaled 0–10. A fund with 80% mapped = 8.0. Unmapped weight defaults to neutral (5.0)
-    // in the thesis score, so low coverage both reduces worldThesis accuracy AND
-    // contributes a lower holdingsCoverage score to the composite. Honest double signal.
+    // Holdings Coverage (informational only — no longer a composite factor)
     const holdingsCoverage=Math.min(10, (totalMapped/100)*10);
 
     // World-thesis score: holdings-weighted average of sector scores
+    // Still computed as informational context + fed to mandate scoring prompt
     let worldThesisScore=5.0;
     if(totalMapped>5&&sectorScores){
       let wSum=0,wTot=0;
@@ -1216,7 +1452,7 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
       worldThesisScore=wTot>0?(wSum+5.0*unmappedFrac)/(wTot+unmappedFrac):5.0;
     }
 
-    // HHI concentration penalty (penalises funds over-concentrated in one sector)
+    // HHI concentration penalty (still applied — independent of factor model)
     const hhi=Object.values(sectorExposure).reduce((s,v)=>s+(v/100)*(v/100),0);
     const concentrationPenalty=Math.max(0,(hhi-0.18)*1.5);
 
@@ -1236,36 +1472,42 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
     // Manager quality from background Promise (Claude-assessed, 30-day cache)
     const managerQuality=APP.managerScores[fund.ticker]?.score||5;
 
-    const roi=predictROI(worldThesisScore,blendedMomentum,riskAdj);
+    // mandateScore: from Claude (v3.1 primary signal) or worldThesis as fallback
+    const mandateData = mandateScores?.[fund.ticker];
+    const mandateScore = mandateData?.mandateScore ?? +worldThesisScore.toFixed(2);
+    const mandateReasoning = mandateData?.reasoning || '';
+
+    // ROI: Claude-primary, formula fallback
+    const roi = mandateData?.roi ?? predictROI(worldThesisScore, blendedMomentum, riskAdj);
 
     results.push({
-      ticker:fund.ticker,name:fund.name,
-      composite:5,roi:+roi.toFixed(2),
+      ticker:fund.ticker, name:fund.name,
+      composite:5, roi:+parseFloat(roi).toFixed(2),
+      mandateScore:+mandateScore.toFixed(2), mandateReasoning,
       worldThesisScore:+worldThesisScore.toFixed(2),
-      momentum:+blendedMomentum.toFixed(2),riskAdj:+riskAdj.toFixed(2),
+      momentum:+blendedMomentum.toFixed(2), riskAdj:+riskAdj.toFixed(2),
       managerQuality:+managerQuality.toFixed(1),
-      holdingsCoverage:+holdingsCoverage.toFixed(2),
+      holdingsCoverage:+holdingsCoverage.toFixed(2), // informational only
       nav:td?.nav||null,
-      sectorBreakdown:sectorExposure,sectorScore:+worldThesisScore.toFixed(2),
+      sectorBreakdown:sectorExposure, sectorScore:+worldThesisScore.toFixed(2),
       alert:ALERTS[fund.ticker]||null,
       holdings:fund.holdings,
-      modZ:0,tier:null,
+      modZ:0, tier:null,
       _concentrationPenalty:concentrationPenalty,
     });
   }
 
-  // ── Final pass: compute composite using all 5 factors ──
-  // W is already normalized to sum to 1.0 (done at top of function).
-  // All five factors now carry independent signal — no constants, no double-counting.
+  // ── Final pass: compute composite using 4 factors ──
+  // W is already normalized to sum to 1.0.
+  // mandateScore replaces worldThesis + holdingsCoverage (v3.1 model).
   results.forEach(f=>{
     const penalty=f._concentrationPenalty||0;
     delete f._concentrationPenalty;
     f.composite=+Math.min(10,Math.max(1,
-      f.worldThesisScore * W.worldThesis +
-      f.momentum        * W.momentum +
-      f.riskAdj         * W.riskAdj +
-      f.managerQuality  * W.managerQuality +
-      f.holdingsCoverage* W.holdingsCoverage
+      f.mandateScore    * (W.mandateScore||0.40) +
+      f.momentum        * (W.momentum||0.25) +
+      f.riskAdj         * (W.riskAdj||0.20) +
+      f.managerQuality  * (W.managerQuality||0.15)
     - penalty)).toFixed(2);
   });
 
@@ -1452,8 +1694,10 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
     nav_at_close:null,
     roi_actual:null,
     factor_scores:JSON.stringify({
-      worldThesis:f.worldThesisScore,momentum:f.momentum,riskAdj:f.riskAdj,
-      managerQuality:f.managerQuality,holdingsCoverage:f.holdingsCoverage,
+      mandateScore:f.mandateScore,momentum:f.momentum,riskAdj:f.riskAdj,
+      managerQuality:f.managerQuality,
+      worldThesisScore:f.worldThesisScore, // informational — not in composite
+      holdingsCoverage:f.holdingsCoverage, // informational — not in composite
       sectorBreakdown:f.sectorBreakdown||{},
     }),
     allocation_pct:allocationResult.find(a=>a.ticker===f.ticker)?.allocationPct||0,
@@ -1720,6 +1964,22 @@ async function runPipeline(){
     }
   }
 
+  // ── STEP 3B: Fund Mandate Scoring (v3.1) ─────────────────────
+  // Scores each fund's investment mandate against current macro conditions.
+  // Runs every time (mandate scores depend on fresh macro — no cache).
+  // Also: expense ratios fetched in background (lightweight, non-blocking).
+  setPL(3,6,'STEP 3 / 6','Scoring fund mandates against macro environment...');
+  setDetailOnly(`Scoring ${funds.length} fund mandates vs. current macro (${APP.dominantTheme||'live conditions'})...`);
+  const mandateScores = await scoreFundMandates(funds, APP.worldData, APP.sectorScores, null);
+  if(mandateScores) {
+    APP.mandateScores = mandateScores;
+    console.log(`Mandate scoring: received scores for ${Object.keys(mandateScores).length}/${funds.length} funds`);
+  } else {
+    APP.errors.push('Mandate scoring failed — composite will use formula fallback for Macro Fit factor.');
+  }
+  // Expense ratios: fire-and-forget, shows up in UI asynchronously
+  fetchExpenseRatios(funds).catch(()=>{});
+
   // ── STEP 4: EDGAR Holdings ────────────────────────────────────
   // Await the background fetch started at t=0. In most cases this is
   // already complete (it ran during the 45–90s of steps 1–3).
@@ -1731,12 +1991,11 @@ async function runPipeline(){
   console.log(`EDGAR: ${holdingsLoaded}/${funds.length} funds with holdings loaded`);
 
   // ── STEP 5: Holdings-Level Scoring + Fund Rollup ─────────────
-  // For each fund: map holdings to sectors → weighted avg sector score.
-  // HHI concentration penalty applied to single-sector-heavy funds.
-  // Momentum: 60% fund NAV (Tiingo) + 40% sector ETF (blended).
+  // For each fund: sector-weighted holdings context computed (informational).
+  // mandateScore (from Step 3B) is the primary Macro Fit factor.
   // Modified Z-score detects statistical outliers in the final ranking.
-  setPL(5,6,'STEP 5 / 6','Scoring each fund by holdings × strategy...');
-  let rankedFunds=await scoreHoldingsAndRollup(fundsWithHoldings,APP.sectorScores,tiingo,sectorMomentum,weights,detail=>{setDetailOnly(detail);});
+  setPL(5,6,'STEP 5 / 6','Scoring each fund by mandate × strategy...');
+  let rankedFunds=await scoreHoldingsAndRollup(fundsWithHoldings,APP.sectorScores,tiingo,sectorMomentum,weights,detail=>{setDetailOnly(detail);},APP.mandateScores);
   rankedFunds=applyStatisticalAnalysis(rankedFunds);
   APP.funds=rankedFunds;
 
@@ -1973,23 +2232,28 @@ function renderRank(){
   }).join('');
 
   const dims=[
-    {key:'worldThesisScore',label:'Trend'},
-    {key:'riskAdj',         label:'Room to Run'},
-    {key:'momentum',        label:'Feel'},
-    {key:'managerQuality',  label:'Foundations'},
-    {key:'holdingsCoverage',label:'Safety Net'},
+    {key:'mandateScore',   label:'Macro Fit'},
+    {key:'riskAdj',        label:'Room to Run'},
+    {key:'momentum',       label:'Market Feel'},
+    {key:'managerQuality', label:'Foundations'},
   ];
   const radarSVG=buildRadarSVG(sel,dims,tier.color,90,90,68);
   
   // Sector breakdown for selected fund
   const sectorBreak=Object.entries(sel.sectorBreakdown||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
+  // Expense ratio tooltip data
+  const er = APP.expenseRatios?.[sel.ticker];
+  const erDisplay = er ? (er.net != null && er.net !== er.gross
+    ? `${(er.net*100).toFixed(2)}% net / ${(er.gross*100).toFixed(2)}% gross`
+    : `${((er.gross||er.net||0)*100).toFixed(2)}%`) : null;
+
   return`<div style="display:flex;height:calc(100vh - 176px);min-height:500px">
     <div style="flex:1;overflow-y:auto;padding:20px 24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
-          <div class="label">Holdings-Based Rankings — ${APP.funds.length} Funds</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Each fund scored by what its holdings are worth <em>right now</em> — sector outlook × position weight × momentum · Mod Z-Score outlier detection</div>
+          <div class="label">Mandate-Based Rankings — ${APP.funds.length} Funds</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Each fund's investment mandate scored against current macro · AI-assessed · Mod Z-Score outlier detection</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${[['var(--green)','🏆 BREAKAWAY'],['var(--green)','⭐ STRONG'],['var(--amber)','✓ SOLID'],['var(--blue)','→ NEUTRAL'],['var(--red)','⚠ WEAK']].map(([c,l])=>`<span style="font-size:10px;color:${c}">${l}</span>`).join(' · ')}
@@ -2007,7 +2271,12 @@ function renderRank(){
           <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700">${sel.ticker}</div>
           <span class="badge ${tier.cls}">${tier.emoji} ${tier.label}</span>
         </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:${sel.alert?'8px':'16px'}">${sel.name}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${sel.name}</div>
+        ${erDisplay?`<div style="margin-bottom:${sel.alert?'8px':'12px'}" title="Expense ratio: ${erDisplay}${er.note?' — '+er.note:''}">
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;font-size:10px;font-weight:600;color:var(--text3);cursor:help">
+            ⚖ ${erDisplay} exp. ratio
+          </span>
+        </div>`:`<div style="margin-bottom:${sel.alert?'8px':'16px'}"></div>`}
         ${sel.alert?`<div style="padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;font-size:11px;color:var(--amber);margin-bottom:14px">⚠ ${sel.alert}</div>`:''}
         <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
           <span class="score-xl" style="color:${tier.color}">${sel.composite.toFixed(2)}</span>
@@ -2020,19 +2289,27 @@ function renderRank(){
         </div>
         <div class="radar-wrap" style="margin-bottom:16px"><svg width="200" height="200" viewBox="0 0 180 180">${radarSVG}</svg></div>
         ${[
-          ['Follow the Trend',  sel.worldThesisScore||5,  getWeights().worldThesis],
-          ['Market Feel',       sel.momentum||5,          getWeights().momentum],
-          ['Room to Run',       sel.riskAdj||5,           getWeights().riskAdj],
-          ['Foundations',       sel.managerQuality||5,    getWeights().managerQuality],
-          ['Safety Net',        sel.holdingsCoverage||0,  getWeights().holdingsCoverage],
-        ].map(([lbl,val,wt])=>`<div style="margin-bottom:10px">
+          ['Macro Fit',    sel.mandateScore||5,    getWeights().mandateScore,   sel.mandateReasoning||''],
+          ['Market Feel',  sel.momentum||5,         getWeights().momentum,        ''],
+          ['Room to Run',  sel.riskAdj||5,          getWeights().riskAdj,         ''],
+          ['Foundations',  sel.managerQuality||5,   getWeights().managerQuality,  APP.managerScores?.[sel.ticker]?.reasoning||''],
+        ].map(([lbl,val,wt,tooltip])=>`<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:11px;font-weight:600;color:var(--text2)">${lbl}</span>
+            <span style="font-size:11px;font-weight:600;color:var(--text2)${tooltip?' cursor:help':''}" ${tooltip?`title="${tooltip.replace(/"/g,"'")}"`:''}>
+              ${lbl}${tooltip?' <span style="font-size:9px;color:var(--text3)">ⓘ</span>':''}
+            </span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${(val||0).toFixed(1)}</span>
           </div>
           <div class="pbar-wrap"><div class="pbar-fill" style="width:${(val||0)*10}%;background:${tier.color}"></div></div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">weight ${wt}%</div>
         </div>`).join('')}
+        ${sel.holdingsCoverage!=null?`<div style="padding:8px 10px;background:var(--surface2);border-radius:6px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">Holdings coverage (informational)</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${((sel.holdingsCoverage||0)*10).toFixed(0)}%</span>
+          </div>
+          <div style="font-size:9px;color:var(--text3);margin-top:3px">Not in composite score — mandateScore replaces Safety Net</div>
+        </div>`:''}
         ${sectorBreak.length?`<div style="margin-top:12px"><div class="label" style="margin-bottom:8px">Top Sector Exposures</div>
           ${sectorBreak.map(([s,pct])=>{const sc=APP.sectorScores?.[s];const col=GICS_SECTORS[s]?.color||'var(--text3)';return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
             <div style="display:flex;align-items:center;gap:6px">
@@ -2433,7 +2710,7 @@ function renderMatrix(){
       <td style="color:var(--text3)">${i+1}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${t.color}">${f.ticker}</td>
       <td style="color:var(--text2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</td>
-      ${[f.worldThesisScore||5,f.momentum||5,f.riskAdj||5,f.managerQuality||5,f.holdingsCoverage||0].map(v=>`<td><div style="display:flex;align-items:center;gap:5px"><div class="pbar-wrap" style="width:32px;height:3px"><div class="pbar-fill" style="width:${v*10}%;background:${t.color}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px">${(v||0).toFixed(1)}</span></div></td>`).join('')}
+      ${[f.mandateScore||5,f.momentum||5,f.riskAdj||5,f.managerQuality||5].map(v=>`<td><div style="display:flex;align-items:center;gap:5px"><div class="pbar-wrap" style="width:32px;height:3px"><div class="pbar-fill" style="width:${v*10}%;background:${t.color}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:11px">${(v||0).toFixed(1)}</span></div></td>`).join('')}
       <td style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${t.color}">${f.composite.toFixed(2)}</td>
       <td class="${f.roi>=0?'pos':'neg'}" style="font-family:'JetBrains Mono',monospace;font-weight:600">${(f.roi>=0?'+':'')+f.roi.toFixed(2)}%</td>
       <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${f.modZ.toFixed(2)}</span></td>
@@ -2444,7 +2721,7 @@ function renderMatrix(){
   return`<div style="padding:20px 24px;overflow:auto;max-height:calc(100vh - 176px)">
     <div class="label" style="margin-bottom:12px">Full Score Matrix · ${APP.funds.length} Funds · ${APP.source.toUpperCase()} Data · Modified Z-Score Outlier Analysis</div>
     <table class="data-table">
-      <thead><tr><th>#</th><th>Ticker</th><th>Fund Name</th><th>Follow the Trend</th><th>Market Feel</th><th>Room to Run</th><th>Foundations</th><th>Safety Net</th><th>Composite</th><th>Pred ROI</th><th>Mod Z</th><th>Tier</th></tr></thead>
+      <thead><tr><th>#</th><th>Ticker</th><th>Fund Name</th><th>Macro Fit</th><th>Market Feel</th><th>Room to Run</th><th>Foundations</th><th>Composite</th><th>Pred ROI</th><th>Mod Z</th><th>Tier</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
@@ -2877,7 +3154,7 @@ async function init(){
     APP.funds=(prof.funds||DEFAULT_FUNDS).map(f=>({
       ...f,...(SEED[f.ticker]||{composite:5,roi:0}),
       tier:getTierFromModZ(0),modZ:0,momentum:5,riskAdj:5,
-      worldThesisScore:5,managerQuality:5,holdingsCoverage:0,sectorBreakdown:{},
+      worldThesisScore:5,mandateScore:5,managerQuality:5,holdingsCoverage:0,sectorBreakdown:{},
       alert:ALERTS[f.ticker]||null,
       holdings:APP.holdingsCache[f.ticker]?.holdings||null,
     }));
@@ -2934,6 +3211,16 @@ CREATE TABLE IF NOT EXISTS manager_scores (
   cached_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE manager_scores DISABLE ROW LEVEL SECURITY;
+
+-- CREATE: Fund profiles — expense ratios (90-day cache, v3.1)
+CREATE TABLE IF NOT EXISTS fund_profiles (
+  ticker TEXT PRIMARY KEY,
+  expense_gross NUMERIC(6,4),
+  expense_net   NUMERIC(6,4),
+  expense_note  TEXT,
+  fetched_at    TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE fund_profiles DISABLE ROW LEVEL SECURITY;
 
 -- Reference: full prediction_cycles columns (blueprint schema, already live)
 -- id, user_id, created_at, closes_at, status, investment_thesis, dominant_theme,

@@ -293,7 +293,26 @@ function saveProfiles(){LS.set('profiles',APP.profiles)}
 function loadProfiles(){return LS.get('profiles')||[]}
 function activeProfile(){return APP.profiles.find(p=>p.id===APP.activeProfile)||null}
 function getFunds(){return activeProfile()?.funds||DEFAULT_FUNDS}
-function getWeights(){return activeProfile()?.weights||DEFAULT_WEIGHTS}
+// getWeights — returns profile weights, migrating old key names on the fly.
+// v3.0 used {macro, momentum, manager, riskAdj, returnScore}.
+// v3.1 uses {mandateScore, momentum, riskAdj, managerQuality}.
+// Old profiles stored in localStorage will have the v3.0 keys; this migration
+// detects them and writes DEFAULT_WEIGHTS so the profile is never broken again.
+function getWeights(){
+  const prof=activeProfile();
+  if(!prof)return DEFAULT_WEIGHTS;
+  const W=prof.weights||DEFAULT_WEIGHTS;
+  const newKeys=Object.keys(DEFAULT_WEIGHTS);
+  const hasNewKeys=newKeys.every(k=>k in W);
+  if(!hasNewKeys){
+    // Migrate: discard old keys, write DEFAULT_WEIGHTS into profile and persist
+    prof.weights={...DEFAULT_WEIGHTS};
+    saveProfiles();
+    console.log('Weight migration: old factor keys replaced with v3.1 defaults');
+    return prof.weights;
+  }
+  return W;
+}
 // Returns weights scaled so they always sum to exactly 1.0 (for use in composite formula).
 // If the user's weights don't sum to 100, we normalize silently — the UI will show a warning.
 function getNormalizedWeights(){
@@ -1708,27 +1727,29 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
   return cycleId;
 }
 
-// Check for prediction cycles that have closed (>90 days) and fetch actual prices
+// Check for prediction cycles that have closed (>90 days) and fetch actual prices.
+// Guard: only one check runs at a time; skips if another tab or reload is already running.
+let _predUpdateRunning=false;
 async function checkAndUpdateClosedPredictions(){
+  if(_predUpdateRunning)return;
+  _predUpdateRunning=true;
   const prof=activeProfile();
-  if(!prof)return;
-  
+  if(!prof){_predUpdateRunning=false;return;}
   try{
     const cycles=await supa.getPredictionCycles(prof.id,20);
-    if(!cycles?.length)return;
-    
+    if(!cycles?.length){_predUpdateRunning=false;return;}
     const now=Date.now();
+    // Cap: process at most 3 closed cycles per page load to avoid many background calls
+    let processed=0;
     for(const cycle of cycles){
+      if(processed>=3)break;
       const closesAt=new Date(cycle.closes_at).getTime();
-      if(closesAt>now)continue; // not closed yet
-      
-      // Get predictions for this cycle
+      if(closesAt>now)continue;
       const preds=await supa.getFundPredictions(cycle.id);
       if(!preds?.length)continue;
-      
       const needsActual=preds.filter(p=>p.roi_actual===null&&p.nav_at_prediction!==null);
       if(!needsActual.length)continue;
-      
+      processed++;
       for(const pred of needsActual){
         const d=await fetchTiingo(pred.fund_ticker);
         if(d?.nav&&pred.nav_at_prediction){
@@ -1738,7 +1759,8 @@ async function checkAndUpdateClosedPredictions(){
         await sleep(300);
       }
     }
-  }catch(e){console.warn('Prediction update check failed:',e.message)}
+  }catch(e){console.warn('Prediction update check failed:',e.message);}
+  _predUpdateRunning=false;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1749,7 +1771,51 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // Use this helper instead — creates a controller, fires abort after ms.
 function fetchSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}
 
-// ─── Market Status ────────────────────────────────────────────
+// ─── Run-state persistence ────────────────────────────────────
+// Saves and restores the results of an analysis run to localStorage so that
+// page reloads don't discard live data or reset delta arrows.
+// Keys persisted: worldDataFetchedAt, mandateScores, prevFundScores,
+//   prevSectorScores, prevRunAt, prevINDPRO, dominantTheme, sectorScores,
+//   investmentThesis (sector JSON only — not the full letter).
+function saveRunState(){
+  try{
+    LS.set('runState',{
+      worldDataFetchedAt: APP.worldDataFetchedAt,
+      mandateScores:      APP.mandateScores,
+      prevFundScores:     APP.prevFundScores,
+      prevSectorScores:   APP.prevSectorScores,
+      prevRunAt:          APP.prevRunAt,
+      prevINDPRO:         APP.prevINDPRO,
+      dominantTheme:      APP.dominantTheme,
+      sectorScores:       APP.sectorScores,
+      // Store only the lightweight thesis fields — not the full investor letter
+      investmentThesis:   APP.investmentThesis?{
+        thesis:         APP.investmentThesis.thesis,
+        dominantTheme:  APP.investmentThesis.dominantTheme,
+        macroStance:    APP.investmentThesis.macroStance,
+        quarterOutlook: APP.investmentThesis.quarterOutlook,
+        riskFactors:    APP.investmentThesis.riskFactors,
+        catalysts:      APP.investmentThesis.catalysts,
+      }:null,
+    });
+  }catch(e){ console.warn('saveRunState failed:',e.message); }
+}
+function restoreRunState(){
+  try{
+    const s=LS.get('runState');
+    if(!s)return;
+    if(s.worldDataFetchedAt) APP.worldDataFetchedAt = s.worldDataFetchedAt;
+    if(s.mandateScores)      APP.mandateScores      = s.mandateScores;
+    if(s.prevFundScores)     APP.prevFundScores      = s.prevFundScores;
+    if(s.prevSectorScores)   APP.prevSectorScores    = s.prevSectorScores;
+    if(s.prevRunAt)          APP.prevRunAt           = s.prevRunAt;
+    if(s.prevINDPRO!=null)   APP.prevINDPRO          = s.prevINDPRO;
+    if(s.dominantTheme)      APP.dominantTheme       = s.dominantTheme;
+    if(s.sectorScores)       APP.sectorScores        = s.sectorScores;
+    if(s.investmentThesis)   APP.investmentThesis    = s.investmentThesis;
+    console.log('Run state restored from localStorage'+(s.prevRunAt?` (last run: ${new Date(s.prevRunAt).toLocaleString()})`:''));
+  }catch(e){ console.warn('restoreRunState failed:',e.message); }
+}
 // Time-based NYSE open check — no API needed.
 // NYSE regular hours: Mon–Fri 09:30–16:00 ET. Does NOT account for
 // market holidays (acceptable — worst case is one wasted Tiingo call on a holiday).
@@ -1789,7 +1855,7 @@ function restoreTiingoCache(){
 const PL_STEPS=[
   {label:'World Intelligence',desc:'FRED economic data (sequential, 10 series) + GDELT geopolitical news'},
   {label:'Tiingo Prices + Sector ETFs',desc:'NAV, momentum, Sharpe + 11 sector ETF trends'},
-  {label:'Strategy Formation',desc:'Claude: investment thesis + 11 GICS sector scores'},
+  {label:'Strategy + Mandate Scoring',desc:'Claude: 11 GICS sector scores → fund mandate scores vs. macro'},
   {label:'EDGAR Holdings',desc:'SEC N-PORT filings — 90-day cache (runs in background)'},
   {label:'Holdings Rollup',desc:'Map holdings → sectors → fund composite score'},
   {label:'Allocation + Thesis',desc:'Risk-adjusted allocation + plain-English investor letter'},
@@ -1966,10 +2032,9 @@ async function runPipeline(){
 
   // ── STEP 3B: Fund Mandate Scoring (v3.1) ─────────────────────
   // Scores each fund's investment mandate against current macro conditions.
-  // Runs every time (mandate scores depend on fresh macro — no cache).
+  // Shown as a sub-step of Step 3 — detail text updates, dot does not re-trigger.
   // Also: expense ratios fetched in background (lightweight, non-blocking).
-  setPL(3,6,'STEP 3 / 6','Scoring fund mandates against macro environment...');
-  setDetailOnly(`Scoring ${funds.length} fund mandates vs. current macro (${APP.dominantTheme||'live conditions'})...`);
+  setDetailOnly(`Scoring ${funds.length} fund mandates vs. macro (${APP.dominantTheme||'live conditions'})...`);
   const mandateScores = await scoreFundMandates(funds, APP.worldData, APP.sectorScores, null);
   if(mandateScores) {
     APP.mandateScores = mandateScores;
@@ -2040,6 +2105,8 @@ async function runPipeline(){
   APP.prevRunAt=new Date().toISOString();
   APP.loading=false;
   APP.pipeline={step:0,total:6,detail:'',stepName:''};
+  // Persist run state so page reloads restore live data, delta arrows, and cached thesis
+  saveRunState();
   render();
 }
 
@@ -2095,7 +2162,7 @@ function renderDataQualityWarning(){
 // ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData={name:'',risk:5,funds:[...DEFAULT_FUNDS],fundInput:''};
+let wizardData={name:'',risk:7,funds:[...DEFAULT_FUNDS],fundInput:''};
 
 function renderWizard(){
   const step=APP.wizardStep;
@@ -2867,6 +2934,9 @@ function renderSettings(){
           <label class="label" style="display:block;margin-bottom:5px">Risk Tolerance: <span id="sRisk" style="font-family:'JetBrains Mono',monospace">${prof.risk}/9 — ${riskLabel(prof.risk)}</span></label>
           <input type="range" min="1" max="9" value="${prof.risk}" oninput="updateProfile('risk',parseInt(this.value));document.getElementById('sRisk').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:4px;accent-color:var(--accent)">
           <div style="background:var(--surface2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);margin-bottom:14px">${riskDescription(prof.risk)}</div>
+          <label class="label" style="display:block;margin-bottom:5px">World Data Cache TTL: <span id="sTTL" style="font-family:'JetBrains Mono',monospace">${prof.worldDataTTL||DEFAULT_WORLD_TTL_MINS} min</span></label>
+          <input type="range" min="15" max="480" step="15" value="${prof.worldDataTTL||DEFAULT_WORLD_TTL_MINS}" oninput="updateProfile('worldDataTTL',parseInt(this.value));document.getElementById('sTTL').textContent=this.value+' min'" style="width:100%;margin-bottom:4px;accent-color:var(--accent)">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:14px">How long FRED + GDELT + sector scores are reused before re-fetching. 60 min is a good default. Set higher (240+) to run multiple scenarios without burning API budget.</div>
 
         </div>
       </div>
@@ -2940,13 +3010,13 @@ function renderSettings(){
           <div class="grid-2" style="gap:12px">
             <div style="padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
               <div style="font-weight:700;font-size:12px;margin-bottom:4px">FRED_KEY <span style="font-size:10px;color:var(--green)">FREE</span></div>
-              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Federal Reserve economic data (765k+ series). Provides structured macro indicators: rates, spreads, PMI, commodities. Without this key, Claude uses web search for macro data.</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Federal Reserve economic data (765k+ series). Provides structured macro indicators: rates, spreads, CPI, oil, consumer sentiment. Without this key, FRED step returns no data and Claude scores from training knowledge only.</div>
               <a href="https://fredaccount.stlouisfed.org/login/secure/" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Register at stlouisfed.org ↗</a>
             </div>
             <div style="padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
-              <div style="font-weight:700;font-size:12px;margin-bottom:4px">FINNHUB_KEY <span style="font-size:10px;color:var(--green)">FREE</span></div>
-              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Finnhub stock fundamentals (P/E, market cap, beta). Used to enrich sector mapping and scoring quality. Without this key, Claude classifies sectors from company names — still accurate for most holdings.</div>
-              <a href="https://finnhub.io/register" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Register at finnhub.io ↗</a>
+              <div style="font-weight:700;font-size:12px;margin-bottom:4px">TWELVEDATA_KEY <span style="font-size:10px;color:var(--green)">FREE</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Used for live gold price (XAU/USD). FRED discontinued its gold series — Twelvedata fills that gap. Without this key, the gold data point is omitted from the macro context Claude reads. Free tier: 800 credits/day.</div>
+              <a href="https://twelvedata.com/pricing" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Register at twelvedata.com ↗</a>
             </div>
           </div>
         </div>
@@ -3149,7 +3219,41 @@ async function init(){
       const rows=await supa.h.get('sector_mappings','?select=ticker,sector&limit=2000');
       if(Array.isArray(rows))rows.forEach(r=>{if(r.ticker&&r.sector)APP.sectorMappingCache[r.ticker]=r.sector});
     }catch(e){}
+
+    // Preload manager scores from Supabase (avoids 22 serial queries in fetchManagerScores)
+    try{
+      const rows=await supa.h.get('manager_scores','?select=ticker,score,reasoning,cached_at');
+      if(Array.isArray(rows)){
+        const TTL_DAYS=30;
+        rows.forEach(r=>{
+          if(!r.ticker)return;
+          const age=(Date.now()-new Date(r.cached_at||0).getTime())/86400000;
+          if(age<TTL_DAYS) APP.managerScores[r.ticker]={score:r.score||5,reasoning:r.reasoning||'',cachedAt:r.cached_at};
+        });
+        console.log(`Manager scores preloaded: ${Object.keys(APP.managerScores).length} funds from Supabase`);
+      }
+    }catch(e){}
+
+    // Preload expense ratios from Supabase fund_profiles (avoids per-ticker queries)
+    try{
+      const fundTickers2=(prof.funds||DEFAULT_FUNDS).map(f=>f.ticker);
+      const inFilter2=fundTickers2.map(t=>`"${t}"`).join(',');
+      const rows=await supa.h.get('fund_profiles',`?ticker=in.(${inFilter2})&select=ticker,expense_gross,expense_net,expense_note,fetched_at`);
+      if(Array.isArray(rows)){
+        const TTL_DAYS=90;
+        rows.forEach(r=>{
+          if(!r.ticker)return;
+          const age=(Date.now()-new Date(r.fetched_at||0).getTime())/86400000;
+          if(age<TTL_DAYS) APP.expenseRatios[r.ticker]={gross:r.expense_gross,net:r.expense_net,note:r.expense_note,fetchedAt:r.fetched_at};
+        });
+        console.log(`Expense ratios preloaded: ${Object.keys(APP.expenseRatios).length} funds from Supabase`);
+      }
+    }catch(e){}
     
+    // Restore run state from previous session (worldDataFetchedAt, mandateScores,
+    // prevFundScores, prevSectorScores, prevRunAt, prevINDPRO, thesis, etc.)
+    restoreRunState();
+
     // Build initial composite from seeds
     APP.funds=(prof.funds||DEFAULT_FUNDS).map(f=>({
       ...f,...(SEED[f.ticker]||{composite:5,roi:0}),

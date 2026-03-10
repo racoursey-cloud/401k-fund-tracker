@@ -234,12 +234,20 @@ const FundLens = (() => {
   }
 
   // ── Fund NAV (Tiingo) ────────────────────────────────────────────────────
+  // Always fetches the latest available close — works after hours, weekends, holidays.
+  // Requests last 7 calendar days to guarantee at least one trading day is included.
   async function fetchNAV(ticker) {
     try {
-      const d = await api(`/api/tiingo/tiingo/daily/${ticker}/prices`);
+      const endDate = new Date().toISOString().slice(0, 10);
+      const startDate = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const d = await api(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${startDate}&endDate=${endDate}`);
       if (d._stale) state.usingCachedPrices = true;
       const arr = Array.isArray(d) ? d : [d];
-      if (arr.length) return { close: arr[0].close || arr[0].adjClose, date: arr[0].date };
+      // Last element is the most recent trading day's close
+      if (arr.length) {
+        const latest = arr[arr.length - 1];
+        return { close: latest.close || latest.adjClose, date: latest.date };
+      }
     } catch (e) {
       console.warn(`NAV ${ticker}:`, e.message);
     }
@@ -651,6 +659,7 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
     if (state.isRunning) return;
     state.isRunning = true;
     state.pipelineProgress = 0;
+    state._navDate = null;
     const forceHoldings = options.refreshHoldings || false;
 
     try {
@@ -738,12 +747,17 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       emit('pipeline', { step: 'Generating allocation...', progress: 88 });
       state.allocation = generateAllocation(state.fundScores, state.profile?.risk_level || 7);
 
-      // Step 9: Fetch NAVs for tracking
-      emit('pipeline', { step: 'Fetching current NAVs...', progress: 90 });
+      // Step 9: Fetch NAVs for tracking (always gets latest available close)
+      const navLabel = state.marketOpen ? 'Fetching live NAVs...' : 'Fetching latest closing NAVs...';
+      emit('pipeline', { step: navLabel, progress: 90 });
       const navMap = {};
       for (const f of state.funds) {
         const nav = await fetchNAV(f.ticker);
-        if (nav) navMap[f.ticker] = nav.close;
+        if (nav) {
+          navMap[f.ticker] = nav.close;
+          // Track the date of the NAV so the UI can show it
+          if (!state._navDate && nav.date) state._navDate = nav.date;
+        }
       }
 
       // Step 10: Save prediction cycle
@@ -790,7 +804,7 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
 
       state.currentCycle = cycle;
       emit('pipeline', { step: 'Analysis complete!', progress: 100 });
-      emit('complete', { cycle, scores: state.fundScores, allocation: state.allocation, thesis: state.thesis, sectorScores: state.sectorScores, thesisData });
+      emit('complete', { cycle, scores: state.fundScores, allocation: state.allocation, thesis: state.thesis, sectorScores: state.sectorScores, thesisData, navDate: state._navDate, marketOpen: state.marketOpen });
 
     } catch (e) {
       console.error('Pipeline error:', e);

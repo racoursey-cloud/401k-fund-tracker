@@ -236,7 +236,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 
   <!-- ── Banners ────────────────────────────────────────────────────── -->
   <div class="banner info" id="cachedBanner">Using cached prices — Tiingo rate limit reached</div>
-  <div class="banner warn" id="closedBanner">Market closed — using last session's prices</div>
+  <div class="banner info" id="closedBanner"></div>
 
   <!-- ── Pipeline Progress ──────────────────────────────────────────── -->
   <div class="pipeline-bar" id="pipelineBar">
@@ -524,7 +524,6 @@ function updateMarketBadge() {
   } else {
     el.className = 'market-badge closed';
     label.textContent = 'Market Closed';
-    document.getElementById('closedBanner').classList.add('active');
   }
 }
 
@@ -751,9 +750,15 @@ function renderResults(data) {
   // Sector scores
   renderSectors(sectorScores);
 
-  // Cached prices banner
+  // Price banners
   if (FundLens.state.usingCachedPrices) {
     document.getElementById('cachedBanner').classList.add('active');
+  }
+  if (!data.marketOpen && data.navDate) {
+    const dateStr = new Date(data.navDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const banner = document.getElementById('closedBanner');
+    banner.textContent = `Market closed — prices from last close (${dateStr})`;
+    banner.classList.add('active');
   }
 }
 

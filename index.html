@@ -90,9 +90,14 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 .sector-neu{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
 .sector-los{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
 /* Thesis prose */
-.thesis-prose{font-size:13px;line-height:1.8;color:var(--text2)}
-.thesis-prose p{margin-bottom:14px}
-.thesis-prose strong{color:var(--text)}
+.thesis-prose{font-size:15px;line-height:1.85;color:var(--text2)}
+.thesis-prose p{margin-bottom:16px}
+.thesis-prose strong{color:var(--text);font-weight:700}
+.thesis-bullets{list-style:none;padding:0;margin:0}
+.thesis-bullets li{font-size:14px;line-height:1.7;color:var(--text2);padding:6px 0 6px 22px;position:relative;border-bottom:1px solid var(--bg)}
+.thesis-bullets li:last-child{border-bottom:none}
+.thesis-bullets li::before{content:'•';position:absolute;left:4px;color:var(--accent);font-weight:900;font-size:16px}
+.thesis-section-label{font-size:11px;font-weight:700;letter-spacing:1.2px;color:var(--text3);text-transform:uppercase;margin-bottom:10px;margin-top:4px}
 /* IC tracker */
 .ic-good{color:var(--green)}.ic-ok{color:var(--amber)}.ic-bad{color:var(--red)}
 /* Breakaway glow */
@@ -241,6 +246,7 @@ let APP = {
   sectorScores:null,     // {Technology:{score,reason}, ...}
   investmentThesis:null, // Full thesis object from Claude
   tiingoStale:false,     // true if Tiingo served cached data due to rate limit
+  tiingoCache:{},        // ticker → {data, cachedAt, marketWasClosed} — persists across runs when mkt closed
   dominantTheme:null,
   dataQuality:null,      // {fredOk,gdeltOk,fredSeriesCount,headlineCount,staleness,assessedAt}
   // Delta tracking — loaded from localStorage, updated each run
@@ -511,18 +517,27 @@ function parseNportXML(xmlText, ticker){
 // TIINGO — NAV + Momentum + Sharpe
 // ═══════════════════════════════════════════════════════════════
 async function fetchTiingo(ticker){
+  // If market is closed and we have a same-session cache hit, skip the network call.
+  // The cache is keyed by ticker and invalidated at start of each new run (see runPipeline).
+  const cached=APP.tiingoCache[ticker];
+  if(cached&&!APP.marketOpen){
+    console.log(`Tiingo ${ticker}: market closed — using cached close (${cached.cachedAt})`);
+    APP.tiingoStale=true;
+    return cached.data;
+  }
+
   const end=new Date();
   const start=new Date();start.setFullYear(start.getFullYear()-1);
   const fmt=d=>d.toISOString().split('T')[0];
   try{
     const r=await fetch(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${fmt(start)}&endDate=${fmt(end)}`,{signal:fetchSignal(10000)});
-    if(r.status===429){APP.tiingoStale=true;return null;} // No cache available at all
-    if(!r.ok)return null;
+    if(r.status===429){APP.tiingoStale=true;return cached?.data||null;} // rate-limited — fall back to cache
+    if(!r.ok)return cached?.data||null;
     // Server returned cached data (X-Tiingo-Cache: STALE or HIT from previous day)
     const cacheHeader=r.headers.get('X-Tiingo-Cache');
     if(cacheHeader==='STALE')APP.tiingoStale=true;
     const data=await r.json();
-    if(!Array.isArray(data)||data.length<20)return null;
+    if(!Array.isArray(data)||data.length<20)return cached?.data||null;
     const prices=data.map(d=>d.adjClose||d.close).filter(Boolean);
     const latest=prices[prices.length-1];
     const p63=prices[Math.max(0,prices.length-64)];
@@ -537,8 +552,11 @@ async function fetchTiingo(ticker){
     const std=Math.sqrt(variance)*Math.sqrt(252);
     const sharpe=std>0?(mean-0.043)/std:0;
     const riskAdj=Math.min(10,Math.max(0,5+sharpe*1.8));
-    return{momentum:+momentum.toFixed(2),riskAdj:+riskAdj.toFixed(2),nav:latest,mom63:+mom63.toFixed(2),mom21:+mom21.toFixed(2)};
-  }catch(e){return null}
+    const result={momentum:+momentum.toFixed(2),riskAdj:+riskAdj.toFixed(2),nav:latest,mom63:+mom63.toFixed(2),mom21:+mom21.toFixed(2)};
+    // Store in session cache so after-hours re-runs skip the fetch
+    APP.tiingoCache[ticker]={data:result,cachedAt:new Date().toLocaleTimeString(),marketWasClosed:!APP.marketOpen};
+    return result;
+  }catch(e){return cached?.data||null;}
 }
 
 // Fetch sector ETF momentum for all 11 GICS sectors
@@ -730,13 +748,15 @@ async function buildWorldIntelligence(setPipelineDetail){
   setPipelineDetail('Fetching FRED economic data + live gold price + Treasury yields...');
   console.group('Step 1 — World Intelligence');
   
-  // Fetch all FRED series in parallel — drops from ~10s sequential to ~1s
+  // Fetch FRED series sequentially — parallel requests overwhelm the Railway proxy
+  // and result in silent 0/9 failures. Sequential adds ~5s but gets real data.
   const fredKeys=Object.keys(FRED_SERIES);
-  const fredResults=await Promise.allSettled(fredKeys.map(k=>fetchFREDSeries(k)));
   const fredData={};
-  fredKeys.forEach((k,i)=>{
-    fredData[k]=fredResults[i].status==='fulfilled'?fredResults[i].value:null;
-  });
+  for(let i=0;i<fredKeys.length;i++){
+    const k=fredKeys[i];
+    setPipelineDetail(`FRED (${i+1}/${fredKeys.length}): ${FRED_SERIES[k]}...`);
+    fredData[k]=await fetchFREDSeries(k);
+  }
 
   // Gold price — FRED discontinued GOLDAMGBD228NLBM; fetch live from Twelvedata instead
   try{
@@ -745,21 +765,16 @@ async function buildWorldIntelligence(setPipelineDetail){
     if(gd?.close){fredData._goldUSD=parseFloat(gd.close).toFixed(2);console.log(`Gold (Twelvedata): $${fredData._goldUSD}`);}
   }catch(e){console.warn('Gold fetch failed:',e.message);}
 
-  // Treasury yield curve — returns CSV, parse to extract key tenors
+  // Treasury yield curve — server now returns parsed JSON (fixed from raw CSV)
   try{
     const tr=await fetch('/api/treasury');
-    const csv=await tr.text();
-    const lines=csv.trim().split('\n');
-    if(lines.length>=2){
-      const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());
-      const vals=lines[1].split(',');
-      const row={};
-      headers.forEach((h,i)=>{row[h]=vals[i]?.trim();});
-      // Pull the key tenors used by analysts
-      if(row['2 Yr']) fredData._t2y=parseFloat(row['2 Yr']);
+    const td=await tr.json();
+    const row=td?.rows?.[0]; // newest row first
+    if(row){
+      if(row['2 Yr'])  fredData._t2y=parseFloat(row['2 Yr']);
       if(row['10 Yr']) fredData._t10y=parseFloat(row['10 Yr']);
       if(row['30 Yr']) fredData._t30y=parseFloat(row['30 Yr']);
-      console.log(`Treasury (live): 2Y=${fredData._t2y}% 10Y=${fredData._t10y}% 30Y=${fredData._t30y}%`);
+      console.log(`Treasury (live ${td.updated}): 2Y=${fredData._t2y}% 10Y=${fredData._t10y}% 30Y=${fredData._t30y}%`);
     }
   }catch(e){console.warn('Treasury yield curve fetch failed:',e.message);}
   
@@ -1506,6 +1521,9 @@ function fetchSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),
 async function runPipeline(){
   if(APP.loading)return;
   APP.loading=true;APP.source='loading';APP.tiingoStale=false;APP.errors=[];
+  // Clear Tiingo cache each run — if market is open we want live prices,
+  // if market is closed the cache will be repopulated on first fetch this session.
+  if(APP.marketOpen) APP.tiingoCache={};
   const funds=getFunds();
   const weights=getWeights();
   const tiingo={};
@@ -1935,8 +1953,8 @@ function renderThesis(){
   
   if(!thesis&&!letter)return`<div style="padding:48px;text-align:center;color:var(--text3)">
     <div style="font-size:32px;margin-bottom:12px">📝</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text2)">No thesis generated yet</div>
-    <p style="font-size:12px;margin-top:8px">Click Run Analysis to generate your first live investment thesis.</p>
+    <div style="font-size:16px;font-weight:600;color:var(--text2)">No thesis generated yet</div>
+    <p style="font-size:13px;margin-top:8px">Click Run Analysis to generate your first live investment thesis.</p>
   </div>`;
   
   const sectorScores=APP.sectorScores||{};
@@ -1947,86 +1965,125 @@ function renderThesis(){
   
   const prof=activeProfile();
   const rt=prof?.risk||5;
-  
-  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
-    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
-      <!-- Left: Investor letter + thesis -->
-      <div style="flex:2;min-width:320px">
-        <!-- Dominant theme banner -->
-        ${thesis?.dominantTheme?`<div style="background:linear-gradient(135deg,var(--text) 0%,#2d3748 100%);color:white;border-radius:10px;padding:16px 20px;margin-bottom:20px">
-          <div style="font-size:10px;font-weight:700;letter-spacing:1px;opacity:0.6;margin-bottom:4px">DOMINANT THEME · ${APP.lastRun||''}</div>
-          <div style="font-family:'Libre Baskerville',serif;font-size:20px;font-weight:700;margin-bottom:8px">${thesis.dominantTheme}</div>
-          <div style="display:flex;gap:12px;font-size:11px;opacity:0.8">
-            <span>Macro stance: <b>${thesis.macroStance||'—'}</b></span>
-            <span>Q outlook: <b>${thesis.quarterOutlook||'—'}</b></span>
-            <span>Risk profile: <b>${riskLabel(rt)}</b></span>
+
+  // Helper: render a thesis text block with smart paragraph → bullet detection
+  // Paragraphs that start with a dash/bullet or are short (≤120 chars) become bullets
+  function thesisBlock(text){
+    if(!text)return'';
+    const paras=text.split('\n\n').map(p=>p.trim()).filter(Boolean);
+    return paras.map(p=>{
+      // Short, punchy paragraph → bullet point
+      if(p.length<=140||p.startsWith('-')||p.startsWith('•')){
+        const clean=p.replace(/^[-•]\s*/,'');
+        return`<li>${clean}</li>`;
+      }
+      return`<p>${p}</p>`;
+    }).join('');
+  }
+
+  // Sector bucket chips
+  const sectorChip=(label,sectors,color)=>sectors.length?`
+    <div style="margin-bottom:14px">
+      <div class="thesis-section-label" style="color:${color}">${label}</div>
+      ${sectors.map(([sector,data])=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bg)">
+          <div style="width:10px;height:10px;border-radius:3px;background:${GICS_SECTORS[sector]?.color||'var(--text3)'};flex-shrink:0"></div>
+          <div style="flex:1">
+            <span style="font-size:14px;font-weight:600;color:var(--text)">${sector}</span>
+            <span style="font-size:12px;color:var(--text3);margin-left:6px">${data.reason||''}</span>
           </div>
-        </div>`:''}
-        
-        <!-- Investor letter -->
-        ${letter?`<div class="card" style="margin-bottom:20px">
-          <div class="card-header"><div style="font-weight:700">Your Investment Recommendation</div><span style="font-size:11px;color:var(--text3)">${riskLabel(rt)} profile (${rt}/9)</span></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${data.score>=7?'var(--green)':data.score<=4?'var(--red)':'var(--text)'}">${data.score}/10</span>
+        </div>`).join('')}
+    </div>`:''
+
+  return`<div style="padding:24px;overflow-y:auto;max-height:calc(100vh - 176px)">
+    <!-- Dominant theme banner -->
+    ${thesis?.dominantTheme?`<div style="background:linear-gradient(135deg,var(--text) 0%,#2d3748 100%);color:white;border-radius:12px;padding:20px 24px;margin-bottom:24px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;opacity:0.55;margin-bottom:6px">DOMINANT THEME · ${APP.lastRun||''}</div>
+      <div style="font-family:'Libre Baskerville',serif;font-size:24px;font-weight:700;margin-bottom:10px;line-height:1.3">${thesis.dominantTheme}</div>
+      <div style="display:flex;gap:20px;font-size:12px;opacity:0.85;flex-wrap:wrap">
+        <span>Macro stance: <b style="font-size:13px">${thesis.macroStance||'—'}</b></span>
+        <span>Q outlook: <b style="font-size:13px">${thesis.quarterOutlook||'—'}</b></span>
+        <span>Risk profile: <b style="font-size:13px">${riskLabel(rt)}</b></span>
+      </div>
+    </div>`:''}
+
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+      <!-- Left column: narrative content -->
+      <div style="flex:2;min-width:320px">
+
+        <!-- Your Recommendation (investor letter) -->
+        ${letter?`<div class="card" style="margin-bottom:22px">
+          <div class="card-header">
+            <div style="font-size:15px;font-weight:700">Your Investment Recommendation</div>
+            <span style="font-size:12px;color:var(--text3)">${riskLabel(rt)} profile (${rt}/9)</span>
+          </div>
           <div class="card-body">
             <div class="thesis-prose">${letter.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
           </div>
         </div>`:''}
-        
-        <!-- Full technical thesis -->
-        ${thesis?.thesis?`<div class="card" style="margin-bottom:20px">
-          <div class="card-header"><div style="font-weight:700">Technical Investment Thesis</div><div style="font-size:11px;color:var(--text3)">${
-      (()=>{const dq=APP.dataQuality;
-        if(!dq)return'AI-generated · '+APP.lastRun;
-        const src=[];
-        if(dq.fredOk)src.push('FRED '+dq.fredSeriesCount+' series');
-        if(dq.gdeltOk)src.push('GDELT '+dq.headlineCount+' headlines');
-        if(!dq.fredOk&&!dq.gdeltOk)src.push('AI training knowledge only — may be outdated');
-        return 'Sources: '+(src.join(' · ')||'none')+' · '+APP.lastRun;
-      })()
-    }</div></div>
+
+        <!-- Technical thesis — split into prose + bullets -->
+        ${thesis?.thesis?`<div class="card" style="margin-bottom:22px">
+          <div class="card-header">
+            <div style="font-size:15px;font-weight:700">Technical Investment Thesis</div>
+            <div style="font-size:11px;color:var(--text3)">${(()=>{
+              const dq=APP.dataQuality;
+              if(!dq)return'AI-generated · '+APP.lastRun;
+              const src=[];
+              if(dq.fredOk)src.push('FRED '+dq.fredSeriesCount+' series');
+              if(dq.gdeltOk)src.push('GDELT '+dq.headlineCount+' headlines');
+              if(!dq.fredOk&&!dq.gdeltOk)src.push('AI training knowledge only — may be outdated');
+              return'Sources: '+(src.join(' · ')||'none')+' · '+APP.lastRun;
+            })()}</div>
+          </div>
           <div class="card-body">
-            <div class="thesis-prose">${thesis.thesis.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>
+            <div class="thesis-prose"><ul class="thesis-bullets">${thesisBlock(thesis.thesis)}</ul></div>
           </div>
         </div>`:''}
-        
-        <!-- Risk factors + catalysts -->
-        <div class="grid-2" style="margin-bottom:20px">
-          ${thesis?.riskFactors?.length?`<div class="card"><div class="card-header" style="padding:14px 18px"><div style="font-weight:700;font-size:12px;color:var(--red)">⚠ Risk Factors</div></div><div class="card-body" style="padding:12px 18px">
-            ${thesis.riskFactors.map(r=>`<div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--bg)">• ${r}</div>`).join('')}
-          </div></div>`:''}
-          ${thesis?.catalysts?.length?`<div class="card"><div class="card-header" style="padding:14px 18px"><div style="font-weight:700;font-size:12px;color:var(--green)">✦ Positive Catalysts</div></div><div class="card-body" style="padding:12px 18px">
-            ${thesis.catalysts.map(c=>`<div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--bg)">• ${c}</div>`).join('')}
-          </div></div>`:''}
-        </div>
-      </div>
-      
-      <!-- Right: Sector scorecard -->
-      <div style="width:260px;flex-shrink:0">
-        <div class="label" style="margin-bottom:12px">Sector Scorecard — 90 Day Outlook</div>
-        ${sortedSectors.map(([sector,data])=>{
-          const col=GICS_SECTORS[sector]?.color||'var(--text3)';
-          const cls=data.score>=7?'sector-win':data.score<=4?'sector-los':'sector-neu';
-          const barW=(data.score/10)*100;
-          return`<div style="margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <div style="display:flex;align-items:center;gap:6px">
-                <div style="width:8px;height:8px;border-radius:2px;background:${col}"></div>
-                <span style="font-size:11px;font-weight:600;color:var(--text2)">${sector}</span>
-              </div>
-              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${data.score>=7?'var(--green)':data.score<=4?'var(--red)':'var(--text)'}">${data.score}/10</span>
+
+        <!-- Risks + Catalysts side by side -->
+        <div class="grid-2" style="margin-bottom:22px">
+          ${thesis?.riskFactors?.length?`<div class="card">
+            <div class="card-header" style="padding:14px 18px">
+              <div style="font-size:14px;font-weight:700;color:var(--red)">⚠ Risk Factors</div>
             </div>
-            <div class="pbar-wrap" style="height:4px;margin-bottom:3px"><div class="pbar-fill" style="width:${barW}%;background:${col}"></div></div>
-            <div style="font-size:10px;color:var(--text3);line-height:1.4">${data.reason||''}</div>
-          </div>`;
-        }).join('')}
-        
-        <!-- Sector ETF legend -->
-        <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
-          <div class="label" style="margin-bottom:8px">Sector ETF Proxies Used</div>
-          ${Object.entries(GICS_SECTORS).map(([s,d])=>`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:2px"><span>${s}</span><span style="font-family:'JetBrains Mono',monospace">${d.etf}</span></div>`).join('')}
+            <div class="card-body" style="padding:8px 18px">
+              <ul class="thesis-bullets">
+                ${thesis.riskFactors.map(r=>`<li>${r}</li>`).join('')}
+              </ul>
+            </div>
+          </div>`:''}
+          ${thesis?.catalysts?.length?`<div class="card">
+            <div class="card-header" style="padding:14px 18px">
+              <div style="font-size:14px;font-weight:700;color:var(--green)">✦ Positive Catalysts</div>
+            </div>
+            <div class="card-body" style="padding:8px 18px">
+              <ul class="thesis-bullets">
+                ${thesis.catalysts.map(c=>`<li>${c}</li>`).join('')}
+              </ul>
+            </div>
+          </div>`:''}
+        </div>
+
+      </div>
+
+      <!-- Right column: sector scorecard -->
+      <div style="width:280px;flex-shrink:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:16px;letter-spacing:0.3px">Sector Scorecard — 90 Day Outlook</div>
+
+        ${sectorChip('OVERWEIGHT — Favor These', winners, 'var(--green)')}
+        ${sectorChip('NEUTRAL — Hold', neutral, 'var(--text3)')}
+        ${sectorChip('UNDERWEIGHT — Avoid', losers, 'var(--red)')}
+
+        <!-- Compact ETF legend -->
+        <div style="margin-top:20px;padding:12px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+          <div class="thesis-section-label" style="margin-bottom:6px">Sector ETF Proxies</div>
+          ${Object.entries(GICS_SECTORS).map(([s,d])=>`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:3px"><span>${s}</span><span style="font-family:'JetBrains Mono',monospace">${d.etf}</span></div>`).join('')}
         </div>
       </div>
     </div>
-    <div style="padding:8px;font-size:10px;color:var(--text3);text-align:center;margin-top:8px">ANALYTICAL FRAMEWORK ONLY · NOT FINANCIAL ADVICE · AI-GENERATED CONTENT · Right stocks for right now — 30–90 day tactical window · Sector scores based on current FRED economic data, GDELT geopolitical intelligence, and sector ETF momentum</div>
+    <div style="padding:10px;font-size:10px;color:var(--text3);text-align:center;margin-top:8px">ANALYTICAL FRAMEWORK ONLY · NOT FINANCIAL ADVICE · AI-GENERATED CONTENT · Right stocks for right now — 30–90 day tactical window · Sector scores based on current FRED economic data, GDELT geopolitical intelligence, and sector ETF momentum</div>
   </div>`;
 }
 

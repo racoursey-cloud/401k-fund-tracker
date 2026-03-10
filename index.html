@@ -83,7 +83,6 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 .fund-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600}
 .fund-chip button{background:none;border:none;cursor:pointer;color:var(--text3);padding:0;font-size:14px;line-height:1;transition:color 0.1s}
 .fund-chip button:hover{color:var(--red)}
-.alert-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);padding:8px 24px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* Sector traffic light */
 .sector-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .sector-win{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
@@ -353,6 +352,8 @@ const supa = {
       await new Promise(r=>setTimeout(r,500)); // small delay before retry
     }
     const now=new Date().toISOString();
+    // Top 200 holdings by weight — covers the full N-PORT filing window.
+    // Preload uses pagination so the 1000-row Supabase default no longer truncates.
     const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,cached_at:now}));
     // holdings_cache has multiple rows per fund — on_conflict=fund_ticker is wrong (not a unique key).
     // Simple INSERT after the DELETE is the correct strategy. If delete failed, we log and skip
@@ -1079,10 +1080,8 @@ async function scoreFundMandates(funds, worldData, sectorScores, fundsWithQuantC
 
   // Build fund list with any available quantitative context + alerts
   const fundLines = funds.map(f => {
-    const alert = ALERTS[f.ticker];
     const qc = fundsWithQuantContext?.[f.ticker];
     let line = `${f.ticker} | ${f.name}`;
-    if(alert) line += ` | ⚠ ${alert}`;
     if(qc?.worldThesisScore) line += ` | Holdings-weighted sector score: ${qc.worldThesisScore.toFixed(1)}/10`;
     if(qc?.holdingsCoverage) line += ` | Holdings coverage: ${(qc.holdingsCoverage*10).toFixed(0)}%`;
     return line;
@@ -1252,7 +1251,7 @@ For holdings with no clear ticker, use the holding name as the key.`;
 // - Parent company stability and stewardship culture
 // - Fee structure and expense ratio trends
 // - AUM size (too small = viability risk, too large = performance drag)
-// - ALERTS data injected as known negative signals
+// - ALERTS data kept for reference only — not injected into scoring prompts
 //
 // Implementation: one batched call for all funds, results cached 30 days
 // in both Supabase (manager_scores table) and APP.managerScores in memory.
@@ -1290,11 +1289,6 @@ async function fetchManagerScores(funds){
 
   console.log(`Manager scores: fetching for ${needed.length} funds via Claude`);
 
-  // Build the alert context for the prompt
-  const alertContext=needed.map(f=>{
-    const a=ALERTS[f.ticker];
-    return a?`${f.ticker} (${f.name}): ALERT — ${a}`:null;
-  }).filter(Boolean).join('\n');
 
   const fundList=needed.map(f=>`${f.ticker}|${f.name}`).join('\n');
 
@@ -1309,8 +1303,6 @@ Scoring guide:
 - 3-4: Below average — team instability, AUM concerns, high fees, or known issues
 - 1-2: Poor — major red flags: leadership departure, viability risk, process breakdown
 
-Known alerts for some funds (treat as confirmed negative signals):
-${alertContext||'(none)'}
 
 Funds to score (ticker|name):
 ${fundList}
@@ -2163,7 +2155,7 @@ function renderDataQualityWarning(){
 // ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData={name:'',risk:7,funds:[...DEFAULT_FUNDS],fundInput:''};
+let wizardData={name:'',risk:7,funds:[],fundInput:''};
 
 function renderWizard(){
   const step=APP.wizardStep;
@@ -2174,7 +2166,7 @@ function renderWizard(){
     body=`
       <div style="margin-bottom:20px">
         <label class="label" style="display:block;margin-bottom:6px">Your Name</label>
-        <input type="text" id="wName" placeholder="e.g. Robert" value="${wizardData.name}" oninput="wizardData.name=this.value" style="margin-bottom:14px">
+        <input type="text" id="wName" placeholder="Your name" value="${wizardData.name}" oninput="wizardData.name=this.value" style="margin-bottom:14px">
         <label class="label" style="display:block;margin-bottom:6px">Risk Tolerance
           <span id="riskLabel" style="font-family:'JetBrains Mono',monospace;color:var(--text);margin-left:8px">${wizardData.risk}/9 — ${riskLabel(wizardData.risk)}</span>
         </label>
@@ -2186,12 +2178,15 @@ function renderWizard(){
     const chips=wizardData.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFund('${f.ticker}')">×</button></span>`).join(' ');
     body=`<div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add every mutual fund ticker available in your 401K. FundLens will fetch the actual companies inside each fund from SEC EDGAR and score every holding based on current macro conditions — then surface the funds that hold the right stocks for right now.</p>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
         <input type="text" id="fundInput" placeholder="e.g. VFINX" oninput="wizardData.fundInput=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')addFund()" value="${wizardData.fundInput}" style="flex:1;text-transform:uppercase">
         <button class="btn btn-primary" onclick="addFund()">Add</button>
       </div>
+      <div style="margin-bottom:14px">
+        <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="loadTAFunds()" title="Load the TA department's 401K fund universe">📋 Load TA Funds</button>
+      </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chips}</div>
-      <p class="note">${wizardData.funds.length} fund${wizardData.funds.length!==1?'s':''} · Pre-loaded with the default 401K fund universe</p>
+      <p class="note">${wizardData.funds.length===0?'No funds added yet — type a ticker above or click Load TA Funds':wizardData.funds.length+' fund'+(wizardData.funds.length!==1?'s':'')+' in your universe'}</p>
     </div>`;
   }else{
     const name=wizardData.name||'you';
@@ -2265,6 +2260,12 @@ function addFund(){
   wizardData.funds.push({ticker:t,name:t});wizardData.fundInput='';render();
 }
 function removeFund(ticker){wizardData.funds=wizardData.funds.filter(f=>f.ticker!==ticker);render()}
+function loadTAFunds(){
+  // Merge DEFAULT_FUNDS into wizard without displacing anything already added
+  const existing=new Set(wizardData.funds.map(f=>f.ticker));
+  DEFAULT_FUNDS.forEach(f=>{if(!existing.has(f.ticker))wizardData.funds.push({...f})});
+  render();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // RANK TAB
@@ -2283,7 +2284,6 @@ function renderRank(){
       <td style="color:var(--text3);font-size:11px;width:28px">${i+1}</td>
       <td style="min-width:64px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.ticker}</div>
-        ${f.alert?`<div style="font-size:9px;color:var(--amber);margin-top:1px">⚠</div>`:''}
       </td>
       <td style="max-width:180px;color:var(--text2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</td>
       <td style="min-width:130px">
@@ -2300,12 +2300,12 @@ function renderRank(){
   }).join('');
 
   const dims=[
-    {key:'mandateScore',   label:'Macro Fit'},
-    {key:'riskAdj',        label:'Room to Run'},
-    {key:'momentum',       label:'Market Feel'},
-    {key:'managerQuality', label:'Foundations'},
+    {key:'mandateScore',   label:'MF'},
+    {key:'riskAdj',        label:'RTR'},
+    {key:'momentum',       label:'MKT'},
+    {key:'managerQuality', label:'MGR'},
   ];
-  const radarSVG=buildRadarSVG(sel,dims,tier.color,90,90,68);
+  const radarSVG=buildRadarSVG(sel,dims,tier.color,120,120,76);
   
   // Sector breakdown for selected fund
   const sectorBreak=Object.entries(sel.sectorBreakdown||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
@@ -2340,12 +2340,11 @@ function renderRank(){
           <span class="badge ${tier.cls}">${tier.emoji} ${tier.label}</span>
         </div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${sel.name}</div>
-        ${erDisplay?`<div style="margin-bottom:${sel.alert?'8px':'12px'}" title="Expense ratio: ${erDisplay}${er.note?' — '+er.note:''}">
+        ${erDisplay?`<div style="margin-bottom:12px" title="Expense ratio: ${erDisplay}${er.note?' — '+er.note:''}">
           <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;font-size:10px;font-weight:600;color:var(--text3);cursor:help">
             ⚖ ${erDisplay} exp. ratio
           </span>
-        </div>`:`<div style="margin-bottom:${sel.alert?'8px':'16px'}"></div>`}
-        ${sel.alert?`<div style="padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;font-size:11px;color:var(--amber);margin-bottom:14px">⚠ ${sel.alert}</div>`:''}
+        </div>`:`<div style="margin-bottom:16px"></div>`}
         <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
           <span class="score-xl" style="color:${tier.color}">${sel.composite.toFixed(2)}</span>
           <span style="font-size:12px;color:var(--text3)">/10</span>
@@ -2355,7 +2354,7 @@ function renderRank(){
           <div><div class="label" style="margin-bottom:2px">Rank</div><div class="score-md">#${APP.funds.findIndex(f=>f.ticker===APP.selectedFund)+1}</div></div>
           <div><div class="label" style="margin-bottom:2px">Mod Z</div><div class="score-md">${sel.modZ.toFixed(2)}</div></div>
         </div>
-        <div class="radar-wrap" style="margin-bottom:16px"><svg width="200" height="200" viewBox="0 0 180 180">${radarSVG}</svg></div>
+        <div class="radar-wrap" style="margin-bottom:16px"><svg width="200" height="200" viewBox="0 0 240 240" overflow="visible">${radarSVG}</svg></div>
         ${[
           ['Macro Fit',    sel.mandateScore||5,    getWeights().mandateScore,   sel.mandateReasoning||''],
           ['Market Feel',  sel.momentum||5,         getWeights().momentum,        ''],
@@ -2403,9 +2402,9 @@ function buildRadarSVG(fund,dims,color,cx,cy,r){
   dims.forEach((d,i)=>{
     const a=-90+i*(360/N);
     const ax=cx+r*Math.cos(rd(a)),ay=cy+r*Math.sin(rd(a));
-    const lx=cx+(r+18)*Math.cos(rd(a)),ly=cy+(r+18)*Math.sin(rd(a));
+    const lx=cx+(r+22)*Math.cos(rd(a)),ly=cy+(r+22)*Math.sin(rd(a));
     svg+=`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="var(--border)" stroke-width="1"/>`;
-    svg+=`<text x="${lx}" y="${ly}" fill="var(--text3)" font-size="9" font-family="Manrope,sans-serif" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`;
+    svg+=`<text x="${lx}" y="${ly}" fill="var(--text2)" font-size="11" font-weight="700" font-family="Manrope,sans-serif" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`;
   });
   const pts=dims.map((d,i)=>{const a=-90+i*(360/N);const v=Math.min(fund[d.key]||0,10)/10;return`${cx+r*v*Math.cos(rd(a))},${cy+r*v*Math.sin(rd(a))}`}).join(' ');
   svg+=`<polygon points="${pts}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="1.5"/>`;
@@ -2534,16 +2533,27 @@ function renderThesis(){
 
         <!-- Risks + Catalysts side by side -->
         <div class="grid-2" style="margin-bottom:22px">
-          ${thesis?.riskFactors?.length?`<div class="card">
-            <div class="card-header" style="padding:14px 18px">
-              <div style="font-size:14px;font-weight:700;color:var(--red)">⚠ Risk Factors</div>
-            </div>
-            <div class="card-body" style="padding:8px 18px">
-              <ul class="thesis-bullets">
-                ${thesis.riskFactors.map(r=>`<li>${r}</li>`).join('')}
-              </ul>
-            </div>
-          </div>`:''}
+          ${(()=>{
+            const allocTickers=new Set((APP.allocationResult||[]).map(f=>f.ticker));
+            const portfolioAlerts=Object.entries(ALERTS)
+              .filter(([ticker])=>allocTickers.has(ticker))
+              .map(([ticker,note])=>`<li><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text)">${ticker}</span> — ${note}</li>`)
+              .join('');
+            const hasRisks=thesis?.riskFactors?.length;
+            if(!hasRisks&&!portfolioAlerts)return'';
+            return`<div class="card">
+              <div class="card-header" style="padding:14px 18px">
+                <div style="font-size:14px;font-weight:700;color:var(--red)">⚠ Risk Factors</div>
+              </div>
+              <div class="card-body" style="padding:8px 18px">
+                ${hasRisks?`<ul class="thesis-bullets">${thesis.riskFactors.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}
+                ${portfolioAlerts?`
+                  ${hasRisks?`<div style="border-top:1px solid var(--border);margin:10px 0 8px"></div>`:''}
+                  <div style="font-size:10px;font-weight:700;letter-spacing:0.8px;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Fund-Level Notes</div>
+                  <ul class="thesis-bullets">${portfolioAlerts}</ul>`:''}
+              </div>
+            </div>`;
+          })()}
           ${thesis?.catalysts?.length?`<div class="card">
             <div class="card-header" style="padding:14px 18px">
               <div style="font-size:14px;font-weight:700;color:var(--green)">✦ Positive Catalysts</div>
@@ -2642,7 +2652,6 @@ function renderPortfolio(){
             <div style="display:flex;justify-content:space-between;margin-top:4px">
               <span style="font-size:11px;color:var(--text3)">${f.name}${topSector?` · primary: ${topSector[0]} ${topSector[1].toFixed(0)}%`:''}</span>
             </div>
-            ${f.alert?`<div style="font-size:10px;color:var(--amber);margin-top:2px">⚠ ${f.alert}</div>`:''}
           </div>`;
         }).join('')}
         
@@ -2686,10 +2695,10 @@ function buildDonutSVG(items,ak,cx,cy,r,inn,lk,cfn,cl){
     const jx=cx+inn*Math.cos(rd(sa)),jy=cy+inn*Math.sin(rd(sa));
     const la=p>0.5?1:0;
     const d=`M${sx} ${sy} A${r} ${r} 0 ${la} 1 ${ex} ${ey} L${ix} ${iy} A${inn} ${inn} 0 ${la} 0 ${jx} ${jy}Z`;
-    const mid=sa+p*180,lx=cx+(r+14)*Math.cos(rd(mid)),ly=cy+(r+14)*Math.sin(rd(mid));
+    const mid=sa+p*180,lx=cx+((r+inn)/2)*Math.cos(rd(mid)),ly=cy+((r+inn)/2)*Math.sin(rd(mid));
     const col=cfn(i);
     o+=`<path d="${d}" fill="${col}" opacity="0.85" stroke="white" stroke-width="2"/>`;
-    if(p>0.05)o+=`<text x="${lx}" y="${ly}" fill="${col}" font-size="8" font-family="JetBrains Mono,monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">${it[lk]}</text>`;
+    if(p>0.05)o+=`<text x="${lx}" y="${ly}" fill="white" font-size="7.5" font-family="JetBrains Mono,monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">${it[lk]}</text>`;
     a=ea;
   });
   o+=`<circle cx="${cx}" cy="${cy}" r="${inn-3}" fill="white"/>`;
@@ -3087,7 +3096,7 @@ function renderPipelineOverlay(){
   return`<div id="pl-overlay" style="position:fixed;inset:0;background:rgba(247,245,240,0.95);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center">
     <div class="card fade-in" style="width:480px;padding:32px;box-shadow:var(--shadow-md)">
       <div style="font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;margin-bottom:4px">Running Analysis</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Reads today's world → builds the investment case → scores all 22 funds · 30–90 day tactical window</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Reads today's world → builds the investment case → scores all ${APP.funds.length} funds · 30–90 day tactical window</div>
       <div class="pbar-wrap" style="height:6px;margin-bottom:24px"><div id="pl-pbar" class="pbar-fill" style="width:${pct}%;background:var(--green)"></div></div>
       ${steps.map((s,i)=>{
         const isDone=i<step-1,isActive=i===step-1;
@@ -3109,7 +3118,6 @@ function renderPipelineOverlay(){
 // ═══════════════════════════════════════════════════════════════
 async function renderApp(){
   const prof=activeProfile();
-  const holdingsCount=APP.funds.filter(f=>f.holdings?.length).length;
   const srcEl=APP.source==='live'?`<span class="src-live">● LIVE · ${APP.lastRun}</span>`:APP.source==='partial'?`<span class="src-partial">◑ PARTIAL</span>`:`<span class="src-seed">○ SEED DATA</span>`;
   
   let content='';
@@ -3121,11 +3129,8 @@ async function renderApp(){
   else if(APP.tab==='settings')content=renderSettings();
   else if(APP.tab==='history')content=await renderHistory();
   
-  const allAlertFunds=APP.funds.filter(f=>f.alert);
-  const hasAlerts=allAlertFunds.length>0;
-  const alertBar=hasAlerts?`<div class="alert-banner"><span style="font-weight:700">Fund Alerts:</span>${allAlertFunds.slice(0,4).map(f=>`<span><b style="font-family:'JetBrains Mono',monospace">${f.ticker}</b> — ${f.alert}</span>`).join(' · ')}${allAlertFunds.length>4?` <span style="font-weight:600">+${allAlertFunds.length-4} more — see Settings</span>`:''}</div>`:'';
   const themeBar=APP.dominantTheme?`<div style="background:var(--text);color:#fff;padding:5px 24px;font-size:11px;display:flex;align-items:center;gap:8px">
-    <span style="font-weight:700;letter-spacing:0.5px">THESIS</span>
+    <span style="font-weight:700;letter-spacing:0.5px">INVESTMENT CASE</span>
     <span>${APP.dominantTheme}</span>
     <span style="opacity:0.5">·</span>
     <span style="opacity:0.7">Macro: ${APP.investmentThesis?.macroStance||'—'}</span>
@@ -3141,14 +3146,13 @@ async function renderApp(){
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${srcEl}
-        ${holdingsCount>0?`<span style="font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);padding:2px 10px;border-radius:10px;font-weight:600">${holdingsCount}/${APP.funds.length} w/ holdings</span>`:''}
+
         ${(()=>{const lens=activeProfile()?.marketLens||[];return lens.length?`<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none;white-space:nowrap"><input type="checkbox" ${APP.applyLens?'checked':''} onchange="APP.applyLens=this.checked" style="accent-color:var(--accent)">Market lens <span style="color:var(--text2);font-family:'JetBrains Mono',monospace">(${lens.length})</span></label>`:'';})()}
         <button class="btn btn-primary" onclick="runPipeline()" ${APP.loading?'disabled':''} style="padding:7px 14px;font-size:12px">
           ${APP.loading?'<span class="spinner"></span>':'▶'} ${APP.source==='live'?'Refresh':'Run Analysis'}
         </button>
       </div>
     </div>
-    ${alertBar}
     ${themeBar}
     <!-- Factor weights bar -->
     <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:5px 24px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -3157,7 +3161,7 @@ async function renderApp(){
     </div>
     <!-- Tabs -->
     <div class="tabs">
-      ${[['rank','Rankings'],['thesis',`Investment Case${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
+      ${[['rank','Rankings'],['thesis',`Investment Case${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings','Fund Holdings'],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
     </div>
     ${renderDataQualityWarning()}
     <div class="fade-in">${content}</div>
@@ -3191,13 +3195,22 @@ async function init(){
     // Restore Tiingo cache from localStorage if market is closed and date matches
     restoreTiingoCache();
     
-    // Preload holdings cache from Supabase — filtered to this profile's funds only
-    // (BUG 9 FIX: was fetching ALL holdings without a fund filter — data leak + wasteful)
+    // Preload holdings cache from Supabase — filtered to this profile's funds only.
+    // PAGINATION FIX: Supabase caps responses at 1000 rows. With 22 funds × up to 200 holdings
+    // (~4,400 rows), a single query silently truncates — some funds appear with no holdings on
+    // page load. We page through in 1000-row batches until the last page is shorter than a full page.
     try{
       const fundTickers=(prof.funds||DEFAULT_FUNDS).map(f=>f.ticker);
       const inFilter=fundTickers.map(t=>`"${t}"`).join(',');
-      const rows=await supa.h.get('holdings_cache',`?fund_ticker=in.(${inFilter})&select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,cached_at&order=cached_at.desc`);
-      if(Array.isArray(rows)){
+      const PAGE=1000;
+      let allHoldingRows=[],holdingsOffset=0,holdingsPage;
+      do{
+        holdingsPage=await supa.h.get('holdings_cache',`?fund_ticker=in.(${inFilter})&select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,cached_at&order=fund_ticker,weight.desc&limit=${PAGE}&offset=${holdingsOffset}`);
+        if(Array.isArray(holdingsPage)&&holdingsPage.length){allHoldingRows=allHoldingRows.concat(holdingsPage);holdingsOffset+=PAGE;}
+        else break;
+      }while(holdingsPage.length===PAGE);
+      const rows=allHoldingRows;
+      if(rows.length){
         const grouped={};
         rows.forEach(row=>{
           const ft=row.fund_ticker;if(!ft)return;

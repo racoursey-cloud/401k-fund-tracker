@@ -1110,8 +1110,10 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
   const seen=new Set();
   fundsWithHoldings.forEach(f=>{
     (f.holdings||[]).forEach(h=>{
-      if(h.ticker&&!APP.sectorMappingCache[h.ticker]&&!seen.has(h.ticker)){
-        seen.add(h.ticker);
+      // BUG FIX: also include name-only holdings (no ticker) — use name as cache key
+      const key=h.ticker||h.name;
+      if(key&&!APP.sectorMappingCache[key]&&!seen.has(key)){
+        seen.add(key);
         allHoldings.push(h);
       }
     });
@@ -1120,15 +1122,25 @@ async function scoreHoldingsAndRollup(fundsWithHoldings, sectorScores, tiingoDat
   // Pass 1 — Supabase cache warm-up (no sleep needed, no rate limit)
   if(allHoldings.length){
     pl(`Step 5A: Loading sector cache for ${allHoldings.length} holdings...`);
-    for(const h of allHoldings) await mapTickerToSector(h.ticker);
+    for(const h of allHoldings){const key=h.ticker||h.name;if(key)await mapTickerToSector(key);}
   }
 
   // Pass 2 — Claude batch for anything still unmapped
-  const stillUnmapped=allHoldings.filter(h=>!APP.sectorMappingCache[h.ticker]);
+  const stillUnmapped=allHoldings.filter(h=>{const k=h.ticker||h.name;return k&&!APP.sectorMappingCache[k];});
   if(stillUnmapped.length){
     pl(`Step 5A: Claude classifying ${stillUnmapped.length} unknown sectors...`);
     const clsResult=await classifyUnknownSectors(stillUnmapped);
-    Object.entries(clsResult).forEach(([key,sector])=>{APP.sectorMappingCache[key]=sector});
+    // BUG FIX: persist Claude's classifications to Supabase so they survive across sessions.
+    // Previously only stored in-memory — cold start next run re-classified everything,
+    // causing holdingsCoverage to be 0.0 unless a full pipeline run had just completed.
+    const persistPromises=[];
+    Object.entries(clsResult).forEach(([key,sector])=>{
+      APP.sectorMappingCache[key]=sector;
+      if(GICS_SECTORS[sector]) persistPromises.push(supa.saveSectorMapping(key,sector,null));
+    });
+    Promise.allSettled(persistPromises).then(r=>{
+      console.log(`Sector cache: persisted ${r.filter(x=>x.status==='fulfilled').length}/${persistPromises.length} new classifications to Supabase`);
+    });
     console.log(`Claude sector fallback: classified ${Object.keys(clsResult).length} tickers`);
   }
 

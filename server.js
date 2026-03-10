@@ -4,24 +4,26 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
-const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY || '';
-const TIINGO_KEY    = process.env.TIINGO_KEY || '';
-const SUPA_URL      = process.env.SUPA_URL || '';
-const SUPA_KEY      = process.env.SUPA_KEY || '';
-const FRED_KEY      = process.env.FRED_KEY || '';
-const FMP_KEY       = process.env.FMP_KEY || '';
-const FINNHUB_KEY   = process.env.FINNHUB_KEY || '';
+const ANTHROPIC_KEY  = process.env.ANTHROPIC_KEY || '';
+const TIINGO_KEY     = process.env.TIINGO_KEY || '';
+const SUPA_URL       = process.env.SUPA_URL || '';
+const SUPA_KEY       = process.env.SUPA_KEY || '';
+const FRED_KEY       = process.env.FRED_KEY || '';
+const FMP_KEY        = process.env.FMP_KEY || '';
+const FINNHUB_KEY    = process.env.FINNHUB_KEY || '';
+const TWELVEDATA_KEY = process.env.TWELVEDATA_KEY || '';
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname)));
 
 // ── In-Memory Caches ──────────────────────────────────────────────────────────
-const tiingoDailyCache = {};   // key: ticker, value: {data, date}
-const fredCache = {};          // key: seriesId, value: {data, fetchedAt}
-const finnhubNewsCache = {};   // key: query, value: {headlines, fetchedAt}
-const fmpCache = {};           // key: ticker, value: {data, fetchedAt}
-let gdeltLastCall = 0;         // enforce 1 req / 5 sec
+const tiingoDailyCache = {};
+const fredCache = {};
+const finnhubCache = {};     // 30min for news, 30d for fundamentals/metrics
+const fmpCache = {};
+const twelvedataCache = {};
+let gdeltLastCall = 0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function todayET() {
@@ -35,7 +37,7 @@ function isMarketOpen() {
   if (day === 0 || day === 6) return false;
   const h = et.getHours(), m = et.getMinutes();
   const mins = h * 60 + m;
-  return mins >= 570 && mins <= 960; // 9:30 – 16:00
+  return mins >= 570 && mins <= 960;
 }
 
 async function proxyFetch(url, options = {}) {
@@ -76,14 +78,12 @@ app.get('/api/tiingo/*', async (req, res) => {
   const qs = new URLSearchParams(req.query).toString();
   const url = `https://api.tiingo.com/${subpath}${qs ? '?' + qs : ''}`;
 
-  // Check daily cache for simple ticker NAV requests
   const tickerMatch = subpath.match(/^tiingo\/daily\/([A-Za-z]+)\/prices$/);
-  if (tickerMatch) {
-    const tk = tickerMatch[1].toUpperCase();
-    const today = todayET();
-    if (tiingoDailyCache[tk] && tiingoDailyCache[tk].date === today) {
-      return res.json(tiingoDailyCache[tk].data);
-    }
+  // Cache key includes query string so date-range and bare requests are separate
+  const cacheKey = tickerMatch ? `${tickerMatch[1].toUpperCase()}:${qs}` : null;
+
+  if (cacheKey && tiingoDailyCache[cacheKey] && tiingoDailyCache[cacheKey].date === todayET()) {
+    return res.json(tiingoDailyCache[cacheKey].data);
   }
 
   try {
@@ -91,21 +91,20 @@ app.get('/api/tiingo/*', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${TIINGO_KEY}` }
     });
     if (r.status === 429) {
-      // Serve stale if available
-      if (tickerMatch) {
-        const tk = tickerMatch[1].toUpperCase();
-        if (tiingoDailyCache[tk]) {
-          return res.json({ ...tiingoDailyCache[tk].data, _stale: true });
+      // Serve stale if available — mark last item with _stale for arrays
+      if (cacheKey && tiingoDailyCache[cacheKey]) {
+        const stale = tiingoDailyCache[cacheKey].data;
+        if (Array.isArray(stale) && stale.length) {
+          const copy = [...stale];
+          copy[copy.length - 1] = { ...copy[copy.length - 1], _stale: true };
+          return res.json(copy);
         }
+        return res.json({ ...stale, _stale: true });
       }
       return res.status(429).json({ error: 'Tiingo rate limit. Try again later.' });
     }
     const data = await r.json();
-    // Cache daily prices
-    if (tickerMatch) {
-      const tk = tickerMatch[1].toUpperCase();
-      tiingoDailyCache[tk] = { data, date: todayET() };
-    }
+    if (cacheKey) tiingoDailyCache[cacheKey] = { data, date: todayET() };
     res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -123,13 +122,9 @@ function supabaseProxy(method) {
       'Authorization': `Bearer ${SUPA_KEY}`,
       'Prefer': req.headers['prefer'] || ''
     };
-    if (method !== 'DELETE') {
-      headers['Content-Type'] = 'application/json';
-    }
+    if (method !== 'DELETE') headers['Content-Type'] = 'application/json';
     const opts = { method, headers };
-    if (method !== 'GET' && method !== 'DELETE' && req.body) {
-      opts.body = JSON.stringify(req.body);
-    }
+    if (method !== 'GET' && method !== 'DELETE' && req.body) opts.body = JSON.stringify(req.body);
     try {
       const r = await proxyFetch(url, opts);
       const text = await r.text();
@@ -147,18 +142,15 @@ app.delete('/api/supabase/*', supabaseProxy('DELETE'));
 
 // ── GET /api/fred/* ───────────────────────────────────────────────────────────
 app.get('/api/fred/*', async (req, res) => {
-  const subpath = req.params[0]; // e.g. "series/observations"
+  const subpath = req.params[0];
   const params = new URLSearchParams(req.query);
   params.set('api_key', FRED_KEY);
   params.set('file_type', 'json');
   const url = `https://api.stlouisfed.org/fred/${subpath}?${params}`;
-
-  // Cache check
   const cacheKey = `${subpath}:${req.query.series_id || ''}`;
   if (fredCache[cacheKey] && (Date.now() - fredCache[cacheKey].fetchedAt) < 86400000) {
     return res.json(fredCache[cacheKey].data);
   }
-
   try {
     const r = await proxyFetch(url);
     const data = await r.json();
@@ -180,8 +172,7 @@ app.get('/api/bls', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ seriesid: seriesIds, startyear: String(year - 1), endyear: String(year) })
     });
-    const data = await r.json();
-    res.json(data);
+    res.json(await r.json());
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -194,33 +185,50 @@ app.get('/api/treasury', async (req, res) => {
     const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all/${yyyymm}?type=daily_treasury_yield_curve&field_tdr_date_value=${now.getFullYear()}&page&_format=csv`;
     const r = await proxyFetch(url);
-    const text = await r.text();
-    res.type('text/csv').send(text);
+    res.type('text/csv').send(await r.text());
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── GET /api/fmp/* ────────────────────────────────────────────────────────────
+// ── GET /api/fmp/* (legacy — FMP free tier is dead as of Aug 2025) ────────────
 app.get('/api/fmp/*', async (req, res) => {
   const subpath = req.params[0];
-  const params = new URLSearchParams(req.query);
-  params.set('apikey', FMP_KEY);
-  const url = `https://financialmodelingprep.com/api/v3/${subpath}?${params}`;
-
-  // 30-day cache for fundamentals
   const cacheKey = subpath;
   if (fmpCache[cacheKey] && (Date.now() - fmpCache[cacheKey].fetchedAt) < 2592000000) {
     return res.json(fmpCache[cacheKey].data);
   }
-
+  const params = new URLSearchParams(req.query);
+  params.set('apikey', FMP_KEY);
   try {
-    const r = await proxyFetch(url);
+    const r = await proxyFetch(`https://financialmodelingprep.com/api/v3/${subpath}?${params}`);
     const data = await r.json();
     fmpCache[cacheKey] = { data, fetchedAt: Date.now() };
     res.json(data);
   } catch (e) {
     if (fmpCache[cacheKey]) return res.json(fmpCache[cacheKey].data);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/twelvedata/* ────────────────────────────────────────────────────
+app.get('/api/twelvedata/*', async (req, res) => {
+  if (!TWELVEDATA_KEY) return res.status(503).json({ error: 'TWELVEDATA_KEY not configured' });
+  const subpath = req.params[0];
+  const params = new URLSearchParams(req.query);
+  params.set('apikey', TWELVEDATA_KEY);
+  const url = `https://api.twelvedata.com/${subpath}?${params}`;
+  const cacheKey = `td:${subpath}:${req.query.symbol || ''}`;
+  if (twelvedataCache[cacheKey] && (Date.now() - twelvedataCache[cacheKey].fetchedAt) < 2592000000) {
+    return res.json(twelvedataCache[cacheKey].data);
+  }
+  try {
+    const r = await proxyFetch(url);
+    const data = await r.json();
+    if (!data.code) twelvedataCache[cacheKey] = { data, fetchedAt: Date.now() };
+    res.json(data);
+  } catch (e) {
+    if (twelvedataCache[cacheKey]) return res.json(twelvedataCache[cacheKey].data);
     res.status(500).json({ error: e.message });
   }
 });
@@ -232,50 +240,39 @@ app.get('/api/finnhub/*', async (req, res) => {
   params.set('token', FINNHUB_KEY);
   const url = `https://finnhub.io/api/v1/${subpath}?${params}`;
 
-  // 30-min cache for news
-  if (subpath.includes('news') || subpath.includes('press-releases')) {
-    const cacheKey = `${subpath}:${req.query.symbol || req.query.category || ''}`;
-    if (finnhubNewsCache[cacheKey] && (Date.now() - finnhubNewsCache[cacheKey].fetchedAt) < 1800000) {
-      return res.json(finnhubNewsCache[cacheKey].data);
-    }
-    try {
-      const r = await proxyFetch(url);
-      const data = await r.json();
-      finnhubNewsCache[cacheKey] = { data, fetchedAt: Date.now() };
-      return res.json(data);
-    } catch (e) {
-      if (finnhubNewsCache[cacheKey]) return res.json(finnhubNewsCache[cacheKey].data);
-      return res.status(500).json({ error: e.message });
-    }
+  const isNews = subpath.includes('news') || subpath.includes('press-releases');
+  const isFundamentals = subpath.includes('metric') || subpath.includes('profile2') || subpath.includes('financials');
+  const cacheKey = `fh:${subpath}:${req.query.symbol || req.query.category || ''}`;
+  const cacheTTL = isNews ? 1800000 : (isFundamentals ? 2592000000 : 0);
+
+  if (cacheTTL > 0 && finnhubCache[cacheKey] && (Date.now() - finnhubCache[cacheKey].fetchedAt) < cacheTTL) {
+    return res.json(finnhubCache[cacheKey].data);
   }
 
   try {
     const r = await proxyFetch(url);
     const data = await r.json();
+    if (cacheTTL > 0) finnhubCache[cacheKey] = { data, fetchedAt: Date.now() };
     res.json(data);
   } catch (e) {
+    if (finnhubCache[cacheKey]) return res.json(finnhubCache[cacheKey].data);
     res.status(500).json({ error: e.message });
   }
 });
 
 // ── GET /api/gdelt ────────────────────────────────────────────────────────────
 app.get('/api/gdelt', async (req, res) => {
-  // Enforce 1 req / 5 sec
   const now = Date.now();
-  if (now - gdeltLastCall < 5000) {
-    return res.status(429).json({ error: 'GDELT rate limit: 1 req per 5 seconds' });
-  }
+  if (now - gdeltLastCall < 5000) return res.status(429).json({ error: 'GDELT rate limit: 1 req per 5 seconds' });
   gdeltLastCall = now;
   const params = new URLSearchParams(req.query);
   if (!params.has('mode')) params.set('mode', 'ArtList');
   if (!params.has('format')) params.set('format', 'json');
   if (!params.has('maxrecords')) params.set('maxrecords', '20');
-  const url = `https://api.gdeltproject.org/api/v2/doc/doc?${params}`;
   try {
-    const r = await proxyFetch(url);
+    const r = await proxyFetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`);
     const text = await r.text();
-    try { res.json(JSON.parse(text)); }
-    catch { res.send(text); }
+    try { res.json(JSON.parse(text)); } catch { res.send(text); }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -284,11 +281,9 @@ app.get('/api/gdelt', async (req, res) => {
 // ── GET /api/gnews ────────────────────────────────────────────────────────────
 app.get('/api/gnews', async (req, res) => {
   const q = req.query.q || 'stock market';
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
   try {
-    const r = await proxyFetch(url);
+    const r = await proxyFetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`);
     const xml = await r.text();
-    // Simple XML→JSON parse for RSS items
     const items = [];
     const re = /<item>([\s\S]*?)<\/item>/g;
     let m;
@@ -302,54 +297,33 @@ app.get('/api/gnews', async (req, res) => {
   }
 });
 
-// ── GET /api/edgar/* ──────────────────────────────────────────────────────────
+// ── SEC EDGAR proxies ─────────────────────────────────────────────────────────
+const SEC_HEADERS = { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' };
+
 app.get('/api/edgar/*', async (req, res) => {
-  const subpath = req.params[0];
-  const qs = new URLSearchParams(req.query).toString();
-  const url = `https://data.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  const url = `https://data.sec.gov/${req.params[0]}${new URLSearchParams(req.query).toString() ? '?' + new URLSearchParams(req.query) : ''}`;
   try {
-    const r = await proxyFetch(url, {
-      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
-    });
+    const r = await proxyFetch(url, { headers: SEC_HEADERS });
     const text = await r.text();
-    try { res.json(JSON.parse(text)); }
-    catch { res.type('text/xml').send(text); }
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    try { res.json(JSON.parse(text)); } catch { res.type('text/xml').send(text); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET /api/efts/* ───────────────────────────────────────────────────────────
 app.get('/api/efts/*', async (req, res) => {
-  const subpath = req.params[0];
-  const qs = new URLSearchParams(req.query).toString();
-  const url = `https://efts.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  const url = `https://efts.sec.gov/${req.params[0]}${new URLSearchParams(req.query).toString() ? '?' + new URLSearchParams(req.query) : ''}`;
   try {
-    const r = await proxyFetch(url, {
-      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
-    });
-    const data = await r.json();
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    const r = await proxyFetch(url, { headers: SEC_HEADERS });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET /api/www4sec/* ────────────────────────────────────────────────────────
 app.get('/api/www4sec/*', async (req, res) => {
-  const subpath = req.params[0];
-  const qs = new URLSearchParams(req.query).toString();
-  const url = `https://www.sec.gov/${subpath}${qs ? '?' + qs : ''}`;
+  const url = `https://www.sec.gov/${req.params[0]}${new URLSearchParams(req.query).toString() ? '?' + new URLSearchParams(req.query) : ''}`;
   try {
-    const r = await proxyFetch(url, {
-      headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app', 'Accept': 'application/json' }
-    });
+    const r = await proxyFetch(url, { headers: SEC_HEADERS });
     const text = await r.text();
-    try { res.json(JSON.parse(text)); }
-    catch { res.type('text/xml').send(text); }
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    try { res.json(JSON.parse(text)); } catch { res.type('text/xml').send(text); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GET /api/market-status ────────────────────────────────────────────────────
@@ -363,7 +337,7 @@ app.get('/health', async (req, res) => {
   const test = async (name, fn) => {
     try { await fn(); checks[name] = 'ok'; } catch (e) { checks[name] = `error: ${e.message}`; }
   };
-  await Promise.allSettled([
+  const tests = [
     test('anthropic', () => proxyFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] })
@@ -371,16 +345,19 @@ app.get('/health', async (req, res) => {
     test('tiingo', () => proxyFetch('https://api.tiingo.com/api/test', { headers: { 'Authorization': `Token ${TIINGO_KEY}` } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('supabase', () => proxyFetch(`${SUPA_URL}/rest/v1/`, { headers: { 'apikey': SUPA_KEY } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('fred', () => proxyFetch(`https://api.stlouisfed.org/fred/series?series_id=DFF&api_key=${FRED_KEY}&file_type=json`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
-    test('fmp', () => proxyFetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${FMP_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('finnhub', () => proxyFetch(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=${FINNHUB_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    test('edgar', () => proxyFetch('https://www.sec.gov/files/company_tickers_mf.json', { headers: SEC_HEADERS }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('gdelt', () => proxyFetch('https://api.gdeltproject.org/api/v2/doc/doc?query=market&mode=ArtList&maxrecords=1&format=json').then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
-    test('edgar', () => proxyFetch('https://efts.sec.gov/LATEST/search-index?q=test&dateRange=custom&startdt=2024-01-01&enddt=2024-01-02&forms=NPORT-P', { headers: { 'User-Agent': 'FundLens/3.0 support@fundlens.app' } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
-  ]);
+  ];
+  if (TWELVEDATA_KEY) {
+    tests.push(test('twelvedata', () => proxyFetch(`https://api.twelvedata.com/quote?symbol=AAPL&apikey=${TWELVEDATA_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })));
+  }
+  await Promise.allSettled(tests);
   const allOk = Object.values(checks).every(v => v === 'ok');
   res.status(allOk ? 200 : 207).json({ status: allOk ? 'healthy' : 'degraded', checks, marketOpen: isMarketOpen(), serverTime: new Date().toISOString() });
 });
 
-// ── Catch-all: serve index.html ───────────────────────────────────────────────
+// ── Catch-all ─────────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });

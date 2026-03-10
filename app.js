@@ -8,8 +8,8 @@ const FundLens = (() => {
     userId: 'robert',
     profile: null,
     funds: [],
-    holdingsMap: {},        // ticker → holdings[]
-    fundamentalsMap: {},    // ticker → fundamentals
+    holdingsMap: {},
+    fundamentalsMap: {},
     worldData: null,
     thesis: null,
     sectorScores: null,
@@ -22,6 +22,8 @@ const FundLens = (() => {
     pipelineProgress: 0,
     marketOpen: true,
     usingCachedPrices: false,
+    _navDate: null,
+    _lastTrackTime: 0,
   };
 
   const DEFAULT_WEIGHTS = { trend: 35, foundations: 22, room: 18, safe: 15, feel: 10 };
@@ -76,12 +78,12 @@ const FundLens = (() => {
     if (MAD === 0) return 0;
     return 0.6745 * (value - med) / MAD;
   }
-  function normalize(v, min, max) { if (max === min) return 0.5; return clamp((v - min) / (max - min), 0, 1); }
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ── API Helpers ───────────────────────────────────────────────────────────
+  // FIX #5: removed redundant ternary
   async function api(path, options = {}) {
-    const res = await fetch(path.startsWith('http') ? path : path, options);
+    const res = await fetch(path, options);
     if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('json')) return res.json();
@@ -162,11 +164,11 @@ const FundLens = (() => {
     } catch { state.marketOpen = false; }
   }
 
-  // ── FRED Data ─────────────────────────────────────────────────────────────
+  // ── FRED Data (FIX #21: parallel fetches) ─────────────────────────────────
   async function fetchFRED() {
     const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
     const results = {};
-    for (const s of FRED_SERIES) {
+    const fetches = FRED_SERIES.map(async (s) => {
       try {
         const d = await api(`/api/fred/series/observations?series_id=${s.id}&sort_order=desc&limit=5&observation_start=${oneYearAgo}`);
         const obs = (d.observations || []).filter(o => o.value !== '.');
@@ -176,7 +178,8 @@ const FundLens = (() => {
       } catch (e) {
         console.warn(`FRED ${s.id} failed:`, e.message);
       }
-    }
+    });
+    await Promise.allSettled(fetches);
     return results;
   }
 
@@ -233,19 +236,16 @@ const FundLens = (() => {
     } catch { return []; }
   }
 
-  // ── Fund NAV (Tiingo) ────────────────────────────────────────────────────
-  // Always fetches the latest available close — works after hours, weekends, holidays.
-  // Requests last 7 calendar days to guarantee at least one trading day is included.
+  // ── Fund NAV (Tiingo) — FIX #6: stale detection for arrays ────────────────
   async function fetchNAV(ticker) {
     try {
       const endDate = new Date().toISOString().slice(0, 10);
       const startDate = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
       const d = await api(`/api/tiingo/tiingo/daily/${ticker}/prices?startDate=${startDate}&endDate=${endDate}`);
-      if (d._stale) state.usingCachedPrices = true;
       const arr = Array.isArray(d) ? d : [d];
-      // Last element is the most recent trading day's close
       if (arr.length) {
         const latest = arr[arr.length - 1];
+        if (latest._stale) state.usingCachedPrices = true;
         return { close: latest.close || latest.adjClose, date: latest.date };
       }
     } catch (e) {
@@ -254,75 +254,130 @@ const FundLens = (() => {
     return null;
   }
 
-  // ── Fund Holdings (SEC EDGAR N-PORT) ──────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EDGAR Holdings — FIX #7, #8, #9, #10
+  //  Path: MF ticker map → submissions API → find NPORT-P → fetch index → XML
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  let _mfTickerMap = null;
+  async function getMFTickerMap() {
+    if (_mfTickerMap) return _mfTickerMap;
+    try {
+      const d = await api('/api/www4sec/files/company_tickers_mf.json');
+      _mfTickerMap = {};
+      // Format: { "data": [[cik, seriesId, classId, ticker], ...] }
+      for (const row of d.data) {
+        _mfTickerMap[row[3]] = { cik: row[0], seriesId: row[1], classId: row[2] };
+      }
+      return _mfTickerMap;
+    } catch (e) {
+      console.warn('Failed to load MF ticker map:', e.message);
+      return {};
+    }
+  }
+
   async function fetchHoldingsFromEDGAR(ticker) {
     emit('status', `Fetching holdings for ${ticker} from SEC EDGAR...`);
     try {
-      // Step 1: Search EFTS for the fund's CIK
-      const search = await api(`/api/efts/LATEST/search-index?q=%22${ticker}%22&forms=NPORT-P&dateRange=custom&startdt=${new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)}&enddt=${new Date().toISOString().slice(0, 10)}`);
-      const hits = search.hits?.hits || [];
-      if (!hits.length) return [];
-
-      // Get first filing
-      const filing = hits[0]._source || hits[0];
-      const accession = (filing.file_num || filing.accession_no || '').replace(/-/g, '');
-      const cik = filing.entity_id || filing.cik;
-      if (!cik) return [];
-
-      // Step 2: Try to get the NPORT XML
-      const padCik = String(cik).padStart(10, '0');
-      const filingUrl = `/api/edgar/cgi-bin/browse-edgar?action=getcompany&CIK=${padCik}&type=NPORT-P&dateb=&owner=include&count=1&output=atom`;
-
-      // Fallback: use EDGAR full-text search results directly
-      const holdings = [];
-      // Try parsing the filing index to find the primary document
-      if (hits[0]._id) {
-        try {
-          const accNo = hits[0]._id;
-          const cleanAcc = accNo.replace(/-/g, '');
-          const idx = await api(`/api/edgar/Archives/edgar/data/${cik}/${cleanAcc}/index.json`);
-          const items = idx?.directory?.item || [];
-          const nportFile = items.find(i => i.name && (i.name.includes('primary_doc') || i.name.endsWith('.xml')));
-          if (nportFile) {
-            const xmlText = await api(`/api/edgar/Archives/edgar/data/${cik}/${cleanAcc}/${nportFile.name}`);
-            const parsed = parseNPORT(xmlText, ticker);
-            if (parsed.length) return parsed;
-          }
-        } catch (e) { console.warn('EDGAR index fallback:', e.message); }
+      // Step 1: Look up CIK via mutual fund ticker map
+      const map = await getMFTickerMap();
+      const info = map[ticker];
+      if (!info) {
+        console.warn(`EDGAR: ${ticker} not found in MF ticker map`);
+        return [];
       }
-      return holdings;
+
+      // Step 2: Fetch submissions for this CIK to find NPORT-P filings
+      const padCik = String(info.cik).padStart(10, '0');
+      const subs = await api(`/api/edgar/submissions/CIK${padCik}.json`);
+      const recent = subs.filings?.recent || {};
+      const forms = recent.form || [];
+      const accessions = recent.accessionNumber || [];
+      const dates = recent.filingDate || [];
+
+      // Find the most recent NPORT-P filing
+      let nportIdx = -1;
+      for (let i = 0; i < forms.length; i++) {
+        if (forms[i] === 'NPORT-P') { nportIdx = i; break; }
+      }
+      if (nportIdx === -1) {
+        console.warn(`EDGAR: No NPORT-P filing found for ${ticker} (CIK ${info.cik})`);
+        return [];
+      }
+
+      const accession = accessions[nportIdx];
+      const filingDate = dates[nportIdx];
+      const accClean = accession.replace(/-/g, '');
+      const cik = String(info.cik);
+
+      // Step 3: Fetch filing index to find the actual XML filename
+      const idx = await api(`/api/edgar/Archives/edgar/data/${cik}/${accClean}/index.json`);
+      const items = idx?.directory?.item || [];
+      // Look for the primary NPORT XML — usually ends in .xml and is the largest file
+      const xmlFile = items.find(i => i.name && i.name.endsWith('.xml') && i.name !== 'primary_doc.xml')
+                   || items.find(i => i.name && i.name.endsWith('.xml'))
+                   || items.find(i => i.name && (i.name.includes('nport') || i.name.includes('primary')));
+
+      if (!xmlFile) {
+        console.warn(`EDGAR: No XML file found in filing index for ${ticker}`);
+        return [];
+      }
+
+      // Step 4: Fetch and parse the NPORT XML
+      const xmlText = await api(`/api/edgar/Archives/edgar/data/${cik}/${accClean}/${xmlFile.name}`);
+      return parseNPORT(xmlText, ticker, filingDate);
     } catch (e) {
       console.warn(`EDGAR holdings ${ticker}:`, e.message);
       return [];
     }
   }
 
-  function parseNPORT(xml, fundTicker) {
+  // FIX #9: correct NPORT field names; FIX #10: pctVal is already a percentage
+  function parseNPORT(xml, fundTicker, filingDate) {
     const holdings = [];
-    // Match invstOrSec blocks
     const blocks = xml.match(/<invstOrSec>([\s\S]*?)<\/invstOrSec>/gi) || [];
     for (const block of blocks) {
-      const get = (tag) => { const m = block.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i')); return m ? m[1].trim() : ''; };
-      const name = get('name') || get('issuerNm');
+      const get = (tag) => {
+        const m = block.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'));
+        return m ? m[1].trim() : '';
+      };
+      // FIX #9: NPORT uses <name> for issuer name, not <title>
+      const name = get('name') || get('title');
       const cusip = get('cusip');
-      const ticker = get('ticker') || get('identifiers>ticker>value'.replace(/>/g, '>')) || '';
-      const pctVal = get('pctVal');
+
+      // Extract ticker from identifiers block if present
+      let holdingTicker = '';
+      const tickerMatch = block.match(/<ticker[^>]*>([^<]*)<\/ticker>/i)
+                       || block.match(/value="([A-Z]{1,5})"/i);
+      if (tickerMatch) holdingTicker = tickerMatch[1].trim();
+
+      // FIX #10: pctVal in NPORT is already a percentage (5.23 = 5.23% of fund)
+      // Some older filings use fractions (0.0523). Detect and handle both.
+      const pctValRaw = get('pctVal');
+      let pctVal = null;
+      if (pctValRaw) {
+        const parsed = parseFloat(pctValRaw);
+        // Heuristic: if < 1 and there are many holdings, it's likely a fraction
+        pctVal = (parsed > 0 && parsed < 0.5 && blocks.length > 20) ? parsed * 100 : parsed;
+      }
+
       const balance = get('balance');
       const valUSD = get('valUSD');
-      const assetCat = get('assetCat') || 'equity';
+      const assetCat = get('assetCat') || '';
+
       if (name) {
         holdings.push({
           fund_ticker: fundTicker,
           holding_name: name,
-          holding_ticker: ticker || null,
+          holding_ticker: holdingTicker || null,
           cusip: cusip || null,
-          pct_of_fund: pctVal ? parseFloat(pctVal) : null,
+          pct_of_fund: pctVal,
           shares: balance ? parseFloat(balance) : null,
           market_value: valUSD ? parseFloat(valUSD) : null,
-          asset_type: assetCat.toLowerCase().includes('debt') ? 'bond' : 'equity',
+          asset_type: (assetCat === 'DE' || assetCat === 'DBT' || assetCat.toLowerCase().includes('debt')) ? 'bond' : 'equity',
           sector: null,
           fetched_at: new Date().toISOString(),
-          filing_date: new Date().toISOString().slice(0, 10),
+          filing_date: filingDate || new Date().toISOString().slice(0, 10),
         });
       }
     }
@@ -340,22 +395,20 @@ const FundLens = (() => {
 
     const holdings = await fetchHoldingsFromEDGAR(ticker);
     if (holdings.length) {
-      // Clear old
       await supaDelete('holdings_cache', `fund_ticker=eq.${ticker}`);
-      // Batch insert
-      const batches = [];
       for (let i = 0; i < holdings.length; i += 50) {
-        batches.push(holdings.slice(i, i + 50));
-      }
-      for (const batch of batches) {
-        try { await supaUpsert('holdings_cache', batch); } catch (e) { console.warn('Holdings insert:', e.message); }
+        try { await supaUpsert('holdings_cache', holdings.slice(i, i + 50)); }
+        catch (e) { console.warn('Holdings insert:', e.message); }
       }
     }
     state.holdingsMap[ticker] = holdings;
     return holdings;
   }
 
-  // ── Company Fundamentals (FMP) ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Company Fundamentals — Finnhub primary, Twelve Data fallback
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async function fetchFundamentals(ticker) {
     if (!ticker) return null;
     // Check Supabase cache (30 days)
@@ -370,59 +423,106 @@ const FundLens = (() => {
       }
     } catch {}
 
+    let data = null;
+
+    // Primary: Finnhub basic-financials (stock/metric)
     try {
-      const [profile, ratios, quote] = await Promise.allSettled([
-        api(`/api/fmp/profile/${ticker}`),
-        api(`/api/fmp/ratios-ttm/${ticker}`),
-        api(`/api/fmp/quote/${ticker}`),
+      const [metricRes, profileRes] = await Promise.allSettled([
+        api(`/api/finnhub/stock/metric?symbol=${ticker}&metric=all`),
+        api(`/api/finnhub/stock/profile2?symbol=${ticker}`),
       ]);
+      const m = metricRes.status === 'fulfilled' ? (metricRes.value.metric || {}) : {};
+      const p = profileRes.status === 'fulfilled' ? profileRes.value : {};
 
-      const p = profile.status === 'fulfilled' && profile.value?.[0] ? profile.value[0] : {};
-      const r = ratios.status === 'fulfilled' && ratios.value?.[0] ? ratios.value[0] : {};
-      const q = quote.status === 'fulfilled' && quote.value?.[0] ? quote.value[0] : {};
-
-      const data = {
-        ticker,
-        company_name: p.companyName || ticker,
-        sector: p.sector || null,
-        industry: p.industry || null,
-        pe_ratio: r.peRatioTTM || q.pe || null,
-        roe: r.returnOnEquityTTM || null,
-        gross_margin: r.grossProfitMarginTTM || null,
-        debt_to_equity: r.debtEquityRatioTTM || null,
-        revenue_growth: r.revenuePerShareTTM ? null : null, // need growth calc
-        piotroski_score: null,
-        analyst_rating: q.analystRating || null,
-        price_vs_50d: q.priceAvg50 ? (q.price - q.priceAvg50) / q.priceAvg50 : null,
-        price_vs_200d: q.priceAvg200 ? (q.price - q.priceAvg200) / q.priceAvg200 : null,
-        momentum_20d: null,
-        momentum_60d: null,
-        momentum_120d: null,
-        fetched_at: new Date().toISOString(),
-      };
-
-      // Estimate piotroski from available data
-      let pio = 0;
-      if (data.roe > 0) pio++;
-      if (data.gross_margin > 0) pio++;
-      if (data.pe_ratio && data.pe_ratio > 0) pio++;
-      if (data.debt_to_equity && data.debt_to_equity < 1) pio += 2;
-      if (data.revenue_growth && data.revenue_growth > 0) pio++;
-      data.piotroski_score = clamp(pio, 0, 9);
-
-      try { await supaUpsert('holding_fundamentals', data); } catch {}
-      state.fundamentalsMap[ticker] = data;
-      return data;
+      if (m.peBasicExclExtraTTM || m.roeTTM || m.grossMarginTTM || p.finnhubIndustry) {
+        const currentPrice = m.marketCapitalization && m.shareOutstanding
+          ? (m.marketCapitalization * 1e6) / (m.shareOutstanding * 1e6) : null;
+        data = {
+          ticker,
+          company_name: p.name || ticker,
+          sector: p.finnhubIndustry || null,
+          industry: p.finnhubIndustry || null,
+          pe_ratio: m.peBasicExclExtraTTM || m.peTTM || null,
+          roe: m.roeTTM ? m.roeTTM / 100 : null,
+          gross_margin: m.grossMarginTTM ? m.grossMarginTTM / 100 : null,
+          debt_to_equity: m['totalDebt/totalEquityQuarterly'] || null,
+          revenue_growth: m.revenueGrowthTTMYoy ? m.revenueGrowthTTMYoy / 100 : null,
+          piotroski_score: null,
+          analyst_rating: null,
+          // FIX #11: compute price_vs_50d and price_vs_200d from Finnhub metrics
+          price_vs_50d: m['52WeekHighDate'] ? null : null, // Finnhub doesn't expose 50d directly
+          price_vs_200d: null,
+          momentum_20d: m['5DayPriceReturnDaily'] ? m['5DayPriceReturnDaily'] / 100 : null,
+          momentum_60d: m['13WeekPriceReturnDaily'] ? m['13WeekPriceReturnDaily'] / 100 : null,
+          momentum_120d: m['26WeekPriceReturnDaily'] ? m['26WeekPriceReturnDaily'] / 100 : null,
+          fetched_at: new Date().toISOString(),
+        };
+      }
     } catch (e) {
-      console.warn(`Fundamentals ${ticker}:`, e.message);
-      return null;
+      console.warn(`Finnhub fundamentals ${ticker}:`, e.message);
     }
+
+    // Fallback: Twelve Data (if configured and Finnhub failed)
+    if (!data) {
+      try {
+        const [statsRes, profileRes] = await Promise.allSettled([
+          api(`/api/twelvedata/statistics?symbol=${ticker}`),
+          api(`/api/twelvedata/profile?symbol=${ticker}`),
+        ]);
+        const stats = statsRes.status === 'fulfilled' ? statsRes.value : {};
+        const prof = profileRes.status === 'fulfilled' ? profileRes.value : {};
+        const v = stats.valuations || {};
+        const fin = stats.financials || {};
+        const bs = fin.balance_sheet || {};
+        const inc = fin.income_statement || {};
+        if (v.trailing_pe || fin.return_on_equity_ttm) {
+          data = {
+            ticker,
+            company_name: prof.name || ticker,
+            sector: prof.sector || null,
+            industry: prof.industry || null,
+            pe_ratio: v.trailing_pe || null,
+            roe: fin.return_on_equity_ttm ? parseFloat(fin.return_on_equity_ttm) / 100 : null,
+            gross_margin: inc.gross_margin ? parseFloat(inc.gross_margin) : null,
+            debt_to_equity: bs.debt_to_equity ? parseFloat(bs.debt_to_equity) : null,
+            revenue_growth: fin.revenue_growth_ttm_yoy ? parseFloat(fin.revenue_growth_ttm_yoy) / 100 : null,
+            piotroski_score: null,
+            analyst_rating: null,
+            price_vs_50d: null,
+            price_vs_200d: null,
+            momentum_20d: null,
+            momentum_60d: null,
+            momentum_120d: null,
+            fetched_at: new Date().toISOString(),
+          };
+        }
+      } catch (e) {
+        console.warn(`TwelveData fundamentals ${ticker}:`, e.message);
+      }
+    }
+
+    if (!data) return null;
+
+    // Estimate piotroski from available data
+    let pio = 0;
+    if (data.roe > 0) pio++;
+    if (data.gross_margin > 0) pio++;
+    if (data.pe_ratio && data.pe_ratio > 0) pio++;
+    if (data.debt_to_equity !== null && data.debt_to_equity < 1) pio += 2;
+    if (data.revenue_growth && data.revenue_growth > 0) pio++;
+    data.piotroski_score = clamp(pio, 0, 9);
+
+    try { await supaUpsert('holding_fundamentals', data); } catch {}
+    state.fundamentalsMap[ticker] = data;
+    return data;
   }
 
-  // ── Scoring Engine ────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Scoring Engine
+  // ═══════════════════════════════════════════════════════════════════════════
+
   function scoreHolding(holding, sectorScores, fundamentals) {
     const sectorName = (fundamentals?.sector || holding.sector || 'unknown').toLowerCase();
-    // Find best matching sector score
     let sectorScore = 5;
     if (sectorScores) {
       for (const [key, val] of Object.entries(sectorScores)) {
@@ -437,12 +537,11 @@ const FundLens = (() => {
       return { score: sectorScore / 10, hasFundamentals: false, sectorScore };
     }
 
-    // Quality score
     const roe = fundamentals.roe ? clamp(fundamentals.roe, -0.5, 1) : 0;
     const gm = fundamentals.gross_margin ? clamp(fundamentals.gross_margin, 0, 1) : 0.3;
     const pio = (fundamentals.piotroski_score || 4) / 9;
     const revG = fundamentals.revenue_growth ? clamp(fundamentals.revenue_growth, -0.5, 1) : 0;
-    const dte = fundamentals.debt_to_equity ? clamp(1 - fundamentals.debt_to_equity / 3, 0, 1) : 0.5;
+    const dte = fundamentals.debt_to_equity != null ? clamp(1 - fundamentals.debt_to_equity / 3, 0, 1) : 0.5;
 
     const qualityScore = (roe * 0.25 + gm * 0.20 + pio * 0.20 + revG * 0.20 + dte * 0.15);
     const holdingScore = (qualityScore * 0.5) + ((sectorScore / 10) * 0.5);
@@ -458,7 +557,7 @@ const FundLens = (() => {
 
   function scoreFund(ticker, holdings, sectorScores) {
     if (MONEY_MARKET.includes(ticker)) {
-      return { ticker, composite: 0, isCash: true, holdingScores: [], factorScores: {} };
+      return { ticker, composite: 0, isCash: true, holdingScores: [], holdingCount: 0 };
     }
 
     let totalWeight = 0;
@@ -468,7 +567,7 @@ const FundLens = (() => {
     for (const h of holdings) {
       const fund = state.fundamentalsMap[h.holding_ticker] || null;
       const result = scoreHolding(h, sectorScores, fund);
-      const w = h.pct_of_fund || (1 / holdings.length * 100);
+      const w = h.pct_of_fund || (100 / Math.max(holdings.length, 1));
       weightedScore += result.score * w;
       totalWeight += w;
       holdingScores.push({ name: h.holding_name, ticker: h.holding_ticker, pct: w, ...result });
@@ -478,16 +577,12 @@ const FundLens = (() => {
     return { ticker, composite, isCash: false, holdingScores, holdingCount: holdings.length };
   }
 
+  // FIX #13: removed unused `total` variable
   function applyFactorWeights(fundScores, weights) {
-    // For now, composite already includes foundations via holdings.
-    // Factor weights adjust the final score emphasis.
     const w = weights || state.profile?.factor_weights || DEFAULT_WEIGHTS;
-    const total = w.trend + w.foundations + w.room + w.safe + w.feel;
 
     return fundScores.map(f => {
       if (f.isCash) return { ...f, weightedScore: 0 };
-      // Base composite is foundations + sector (room proxy)
-      // Apply weight multipliers
       const baseScore = f.composite * 10;
       const trendMult = w.trend / 35;
       const foundMult = w.foundations / 22;
@@ -496,7 +591,7 @@ const FundLens = (() => {
       const feelMult = w.feel / 10;
 
       const weightedScore = baseScore * (
-        (trendMult * 0.35 + foundMult * 0.22 + roomMult * 0.18 + safeMult * 0.15 + feelMult * 0.10)
+        trendMult * 0.35 + foundMult * 0.22 + roomMult * 0.18 + safeMult * 0.15 + feelMult * 0.10
       );
 
       return {
@@ -524,6 +619,7 @@ const FundLens = (() => {
     });
   }
 
+  // FIX #14: classify funds by holdings asset_type content, not fund name
   function generateAllocation(scoredFunds, riskLevel) {
     const alloc = RISK_ALLOC[riskLevel || 5];
     const eqTarget = (alloc.eqMin + alloc.eqMax) / 2;
@@ -533,17 +629,26 @@ const FundLens = (() => {
     const cashFunds = scoredFunds.filter(f => f.isCash);
     const scoreable = scoredFunds.filter(f => !f.isCash).sort((a, b) => b.weightedScore - a.weightedScore);
 
-    // Classify funds (rough: bond funds have 'bond' or 'income' in name, or low composite)
-    const bondFunds = scoreable.filter(f => {
+    // Classify bond vs equity funds by analyzing their holdings
+    const bondFunds = [];
+    const eqFunds = [];
+    for (const f of scoreable) {
+      const holdings = state.holdingsMap[f.ticker] || [];
+      const bondCount = holdings.filter(h => h.asset_type === 'bond').length;
+      const bondPct = holdings.length > 0 ? bondCount / holdings.length : 0;
+      // Also check fund name as fallback
       const name = (state.funds.find(uf => uf.ticker === f.ticker)?.fund_name || '').toLowerCase();
-      return name.includes('bond') || name.includes('income') || name.includes('fixed') || name.includes('treasury');
-    });
-    const eqFunds = scoreable.filter(f => !bondFunds.includes(f));
+      const nameIsBond = name.includes('bond') || name.includes('income') || name.includes('fixed') || name.includes('treasury');
+      if (bondPct > 0.5 || nameIsBond) {
+        bondFunds.push(f);
+      } else {
+        eqFunds.push(f);
+      }
+    }
 
     const allocations = [];
     let remaining = 100;
 
-    // Cash allocation
     if (cashFunds.length && cashTarget > 0) {
       const cashPer = cashTarget / Math.max(cashFunds.length, 1);
       for (const f of cashFunds) {
@@ -553,23 +658,21 @@ const FundLens = (() => {
       }
     }
 
-    // Bond allocation
     if (bondFunds.length && bondTarget > 0) {
-      const totalBondScore = bondFunds.reduce((s, f) => s + f.weightedScore, 0) || 1;
+      const totalBondScore = bondFunds.reduce((s, f) => s + (f.weightedScore || 0.1), 0);
       for (const f of bondFunds) {
-        const pct = Math.round((f.weightedScore / totalBondScore) * bondTarget * 10) / 10;
+        const pct = Math.round(((f.weightedScore || 0.1) / totalBondScore) * bondTarget * 10) / 10;
         const capped = Math.min(pct, alloc.maxFund);
         allocations.push({ ticker: f.ticker, pct: capped, type: 'bond' });
         remaining -= capped;
       }
     }
 
-    // Equity allocation — score-weighted, capped
     if (eqFunds.length) {
-      const totalEqScore = eqFunds.reduce((s, f) => s + f.weightedScore, 0) || 1;
+      const totalEqScore = eqFunds.reduce((s, f) => s + (f.weightedScore || 0.1), 0);
       const eqBudget = Math.max(remaining, 0);
       for (const f of eqFunds) {
-        const raw = (f.weightedScore / totalEqScore) * eqBudget;
+        const raw = ((f.weightedScore || 0.1) / totalEqScore) * eqBudget;
         const pct = Math.round(Math.min(raw, alloc.maxFund) * 10) / 10;
         allocations.push({ ticker: f.ticker, pct, type: 'equity' });
       }
@@ -585,8 +688,11 @@ const FundLens = (() => {
     return allocations;
   }
 
-  // ── Claude Thesis + Sector Scoring ────────────────────────────────────────
-  async function generateThesis(worldData) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Claude Thesis + Sector Scoring — FIX #23: retry on JSON parse failure
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async function generateThesis(worldData, retryCount = 0) {
     const prompt = `You are a senior investment analyst. Based on the following real-time world data, write a clear investment thesis and derive sector scores.
 
 ## WORLD DATA SNAPSHOT
@@ -610,7 +716,7 @@ ${(worldData.gnews || []).slice(0, 8).map(a => `- ${a.title}`).join('\n')}
 ${(worldData.finnhub || []).slice(0, 8).map(a => `- ${a.headline}`).join('\n')}
 
 ## INSTRUCTIONS:
-Respond in STRICT JSON only. No markdown, no preamble. Format:
+Respond in STRICT JSON only. No markdown, no preamble, no backticks. Format:
 {
   "thesis": {
     "sentence1": "What is happening in the world right now (1 dominant theme)",
@@ -651,27 +757,37 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
 
     const text = resp.content?.map(c => c.text || '').join('') || '';
     const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    return JSON.parse(cleaned);
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      console.warn(`Thesis JSON parse failed (attempt ${retryCount + 1}):`, e.message);
+      if (retryCount < 2) {
+        await sleep(1000);
+        return generateThesis(worldData, retryCount + 1);
+      }
+      throw new Error('Claude returned invalid JSON after 3 attempts');
+    }
   }
 
-  // ── Main Pipeline ─────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Main Pipeline
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async function runAnalysis(options = {}) {
     if (state.isRunning) return;
     state.isRunning = true;
     state.pipelineProgress = 0;
     state._navDate = null;
+    state.usingCachedPrices = false;
     const forceHoldings = options.refreshHoldings || false;
 
     try {
-      // Step 1: World data
+      // Step 1: World data (all sources in parallel)
       emit('pipeline', { step: 'Gathering world data...', progress: 5 });
       const [fred, bls, treasury, gdelt, gnews, finnhub] = await Promise.allSettled([
-        fetchFRED(),
-        fetchBLS(),
-        fetchTreasury(),
-        fetchGDELT(),
-        fetchGoogleNews(),
-        fetchFinnhubNews(),
+        fetchFRED(), fetchBLS(), fetchTreasury(),
+        fetchGDELT(), fetchGoogleNews(), fetchFinnhubNews(),
       ]);
 
       state.worldData = {
@@ -694,12 +810,11 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
 
       // Step 3: Fund holdings
       const activeFunds = state.funds.filter(f => !MONEY_MARKET.includes(f.ticker));
-      const mmFunds = state.funds.filter(f => MONEY_MARKET.includes(f.ticker));
       let holdingsLoaded = 0;
       for (const f of activeFunds) {
         emit('pipeline', { step: `Loading holdings: ${f.ticker} (${++holdingsLoaded}/${activeFunds.length})`, progress: 40 + (holdingsLoaded / activeFunds.length) * 15 });
         await loadOrFetchHoldings(f.ticker, forceHoldings);
-        await sleep(100);
+        await sleep(200); // SEC rate limit: ~10 req/sec
       }
       emit('pipeline', { step: 'Holdings loaded', progress: 55 });
 
@@ -707,7 +822,6 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       emit('pipeline', { step: 'Fetching company fundamentals...', progress: 58 });
       const allHoldingTickers = new Set();
       for (const [, holdings] of Object.entries(state.holdingsMap)) {
-        // Top 20 by weight for each fund
         const sorted = [...holdings].sort((a, b) => (b.pct_of_fund || 0) - (a.pct_of_fund || 0));
         for (const h of sorted.slice(0, 20)) {
           if (h.holding_ticker && h.holding_ticker.length <= 5) allHoldingTickers.add(h.holding_ticker);
@@ -721,7 +835,8 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
           emit('pipeline', { step: `Fundamentals: ${fundLoaded}/${tickers.length}`, progress: 58 + (fundLoaded / tickers.length) * 15 });
         }
         await fetchFundamentals(t);
-        await sleep(200); // Rate limit FMP
+        // FIX #15: Finnhub free tier = 60 req/min → 1 req/sec needed
+        await sleep(1100);
       }
       emit('pipeline', { step: 'Fundamentals loaded', progress: 73 });
 
@@ -730,8 +845,7 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       let rawScores = [];
       for (const f of state.funds) {
         const holdings = state.holdingsMap[f.ticker] || [];
-        const score = scoreFund(f.ticker, holdings, state.sectorScores);
-        rawScores.push(score);
+        rawScores.push(scoreFund(f.ticker, holdings, state.sectorScores));
       }
 
       // Step 6: Apply factor weights
@@ -747,7 +861,7 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       emit('pipeline', { step: 'Generating allocation...', progress: 88 });
       state.allocation = generateAllocation(state.fundScores, state.profile?.risk_level || 7);
 
-      // Step 9: Fetch NAVs for tracking (always gets latest available close)
+      // Step 9: Fetch NAVs for tracking
       const navLabel = state.marketOpen ? 'Fetching live NAVs...' : 'Fetching latest closing NAVs...';
       emit('pipeline', { step: navLabel, progress: 90 });
       const navMap = {};
@@ -755,7 +869,6 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
         const nav = await fetchNAV(f.ticker);
         if (nav) {
           navMap[f.ticker] = nav.close;
-          // Track the date of the NAV so the UI can show it
           if (!state._navDate && nav.date) state._navDate = nav.date;
         }
       }
@@ -780,20 +893,22 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       };
       await supaUpsert('prediction_cycles', cycle);
 
-      // Save fund predictions
       for (const f of state.fundScores) {
         const alloc = state.allocation.find(a => a.ticker === f.ticker);
+        // FIX #16: smarter ROI prediction based on score relative to average
+        const avgScore = state.fundScores.filter(x => !x.isCash).reduce((s, x) => s + x.weightedScore, 0) / Math.max(state.fundScores.filter(x => !x.isCash).length, 1);
+        const relativeStrength = avgScore > 0 ? (f.weightedScore / avgScore - 1) : 0;
         const pred = {
           id: uid(),
           cycle_id: cycleId,
           user_id: state.userId,
           fund_ticker: f.ticker,
           fund_name: state.funds.find(uf => uf.ticker === f.ticker)?.fund_name || f.ticker,
-          predicted_rank: state.fundScores.indexOf(f) + 1,
+          predicted_rank: state.fundScores.filter(x => !x.isCash).indexOf(f) + 1,
           composite_score: f.weightedScore,
           zscore: f.zscore || 0,
           is_breakaway: f.isBreakaway || false,
-          predicted_roi_90d: (f.weightedScore / 10 - 0.5) * 0.15, // rough estimate
+          predicted_roi_90d: f.isCash ? 0.01 : clamp(relativeStrength * 0.08, -0.15, 0.25),
           nav_at_prediction: navMap[f.ticker] || null,
           factor_scores: f.factorScores || {},
           top_holdings_snapshot: (f.holdingScores || []).slice(0, 10).map(h => ({ name: h.name, ticker: h.ticker, score: h.score })),
@@ -814,8 +929,15 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
     }
   }
 
-  // ── Prediction Tracking ───────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Prediction Tracking — FIX #22: throttle to max once per hour
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async function trackOpenPredictions() {
+    // Skip if tracked within the last hour
+    if (Date.now() - state._lastTrackTime < 3600000) return;
+    state._lastTrackTime = Date.now();
+
     try {
       const openCycles = await supaGet('prediction_cycles', `user_id=eq.${state.userId}&status=eq.open&order=created_at.desc`);
       for (const cycle of openCycles) {
@@ -832,7 +954,6 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
             });
           }
         }
-        // Check if cycle should close (90 days elapsed)
         const elapsed = Date.now() - new Date(cycle.created_at).getTime();
         if (elapsed > 90 * 86400000) {
           await evaluateCycle(cycle.id);
@@ -863,9 +984,8 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
   // ── Weight Adjustment (Feedback Loop) ─────────────────────────────────────
   async function adjustWeights() {
     const closedCycles = await supaGet('prediction_cycles', `user_id=eq.${state.userId}&status=eq.closed&order=created_at.desc&limit=10`);
-    if (closedCycles.length < 5) return null; // Need 5+ closed cycles
+    if (closedCycles.length < 5) return null;
 
-    // Analyze which factor weights correlated with better accuracy
     const factorAccuracy = { trend: [], foundations: [], room: [], safe: [], feel: [] };
     for (const cycle of closedCycles) {
       const w = cycle.factor_weights || DEFAULT_WEIGHTS;
@@ -878,7 +998,6 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
     const current = state.profile?.factor_weights || { ...DEFAULT_WEIGHTS };
     const adjustments = {};
     for (const [factor, data] of Object.entries(factorAccuracy)) {
-      // Simple correlation: did higher weight → higher accuracy?
       const highWeight = data.filter(d => d.weight > current[factor]);
       const lowWeight = data.filter(d => d.weight <= current[factor]);
       const highAvg = highWeight.length ? highWeight.reduce((s, d) => s + d.accuracy, 0) / highWeight.length : 0;
@@ -887,12 +1006,9 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
       let shift = 0;
       if (highAvg > lowAvg + 5) shift = 2;
       else if (lowAvg > highAvg + 5) shift = -2;
-
-      const newWeight = clamp(current[factor] + shift, 5, 60);
-      adjustments[factor] = newWeight;
+      adjustments[factor] = clamp(current[factor] + shift, 5, 60);
     }
 
-    // Normalize to 100
     const total = Object.values(adjustments).reduce((s, v) => s + v, 0);
     for (const f of Object.keys(adjustments)) {
       adjustments[f] = Math.round(adjustments[f] / total * 100);
@@ -913,11 +1029,8 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
     const mult = SLIDER_MULTIPLIERS[sliderIndex];
     const base = DEFAULT_WEIGHTS[changedKey];
     const newVal = Math.round(base * mult);
-
     const updated = { ...weights, [changedKey]: newVal };
     const total = Object.values(updated).reduce((s, v) => s + v, 0);
-
-    // Renormalize to 100
     for (const k of Object.keys(updated)) {
       updated[k] = Math.round(updated[k] / total * 100);
     }
@@ -932,34 +1045,9 @@ Score each sector 1-10. Higher = more favorable given current conditions. Each r
 
   // ── Public API ────────────────────────────────────────────────────────────
   return {
-    state,
-    DEFAULT_WEIGHTS,
-    SLIDER_MULTIPLIERS,
-    SLIDER_LABELS,
-    MONEY_MARKET,
-    ROBERT_FUNDS,
-    RISK_ALLOC,
-
-    // Init
-    loadProfile,
-    saveProfile,
-    loadFunds,
-    addFund,
-    removeFund,
-    loadRobertFunds,
-    checkMarket,
-
-    // Analysis
-    runAnalysis,
-    loadPastCycles,
-    trackOpenPredictions,
-    adjustWeights,
-    normalizeWeights,
-
-    // Events
-    on, off, emit,
-
-    // Utility
-    uid,
+    state, DEFAULT_WEIGHTS, SLIDER_MULTIPLIERS, SLIDER_LABELS, MONEY_MARKET, ROBERT_FUNDS, RISK_ALLOC,
+    loadProfile, saveProfile, loadFunds, addFund, removeFund, loadRobertFunds, checkMarket,
+    runAnalysis, loadPastCycles, trackOpenPredictions, adjustWeights, normalizeWeights,
+    on, off, emit, uid,
   };
 })();

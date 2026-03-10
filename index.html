@@ -7,44 +7,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ── Reset & Variables ──────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:       #0a0e17;
-  --surface:  #111827;
-  --surface2: #1a2235;
-  --surface3: #222d42;
-  --border:   #2a3550;
-  --border2:  #374361;
-  --text:     #e8ecf4;
-  --text2:    #94a3b8;
-  --text3:    #64748b;
-  --accent:   #3b82f6;
-  --accent2:  #60a5fa;
-  --green:    #22c55e;
-  --green2:   #166534;
-  --red:      #ef4444;
-  --red2:     #7f1d1d;
-  --amber:    #f59e0b;
-  --amber2:   #78350f;
-  --purple:   #a78bfa;
-  --cyan:     #22d3ee;
-  --radius:   10px;
-  --font:     'DM Sans', -apple-system, sans-serif;
-  --mono:     'JetBrains Mono', monospace;
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2235;--surface3:#222d42;
+  --border:#2a3550;--border2:#374361;--text:#e8ecf4;--text2:#94a3b8;--text3:#64748b;
+  --accent:#3b82f6;--accent2:#60a5fa;--green:#22c55e;--green2:#166534;
+  --red:#ef4444;--red2:#7f1d1d;--amber:#f59e0b;--amber2:#78350f;
+  --purple:#a78bfa;--cyan:#22d3ee;--radius:10px;
+  --font:'DM Sans',-apple-system,sans-serif;--mono:'JetBrains Mono',monospace;
 }
 html{font-size:15px;scroll-behavior:smooth}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
 a{color:var(--accent2);text-decoration:none}
 button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 input,select,textarea{font-family:var(--font);outline:none}
-
-/* ── Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-
-/* ── Layout ───────────────────────────────────────────────────────── */
 .app-shell{max-width:1280px;margin:0 auto;padding:20px 24px 60px}
 header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 24px;border-bottom:1px solid var(--border);margin-bottom:28px}
 .logo{display:flex;align-items:center;gap:12px}
@@ -58,53 +37,31 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 .market-badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .risk-badge{font-size:0.8rem;padding:4px 12px;border-radius:20px;background:var(--surface2);color:var(--amber);font-weight:600;cursor:pointer;border:1px solid var(--border);transition:all .2s}
 .risk-badge:hover{border-color:var(--amber)}
-
-/* ── Tabs ─────────────────────────────────────────────────────────── */
 .tab-bar{display:flex;gap:2px;background:var(--surface);border-radius:var(--radius);padding:3px;margin-bottom:24px;overflow-x:auto}
 .tab-btn{padding:8px 18px;border-radius:7px;background:transparent;color:var(--text3);font-size:0.85rem;font-weight:500;white-space:nowrap;transition:all .2s}
 .tab-btn.active{background:var(--surface3);color:var(--text);font-weight:600}
 .tab-btn:hover:not(.active){color:var(--text2)}
-.tab-content{display:none}
-.tab-content.active{display:block;animation:fadeIn .25s ease}
+.tab-content{display:none}.tab-content.active{display:block;animation:fadeIn .25s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-
-/* ── Cards ────────────────────────────────────────────────────────── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .card-title{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:8px}
 .card-subtitle{font-size:0.8rem;color:var(--text3);margin-top:2px}
-
-/* ── Buttons ──────────────────────────────────────────────────────── */
 .btn{padding:8px 18px;border-radius:7px;font-size:0.85rem;font-weight:600;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover{background:#2563eb}
-.btn-primary:disabled{opacity:0.5;cursor:not-allowed}
-.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
-.btn-secondary:hover{border-color:var(--accent);color:var(--text)}
-.btn-danger{background:var(--red2);color:var(--red)}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#2563eb}.btn-primary:disabled{opacity:0.5;cursor:not-allowed}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}.btn-secondary:hover{border-color:var(--accent);color:var(--text)}
 .btn-sm{padding:5px 12px;font-size:0.78rem}
-.btn-ghost{background:transparent;color:var(--text3);padding:4px 8px}
-.btn-ghost:hover{color:var(--text)}
-
-/* ── Pipeline Progress ────────────────────────────────────────────── */
-.pipeline-bar{display:none;margin-bottom:20px}
-.pipeline-bar.active{display:block}
+.pipeline-bar{display:none;margin-bottom:20px}.pipeline-bar.active{display:block}
 .pipeline-track{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:8px}
 .pipeline-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px;transition:width .4s ease;width:0}
 .pipeline-label{font-size:0.78rem;color:var(--text3);font-family:var(--mono)}
-
-/* ── Thesis ───────────────────────────────────────────────────────── */
 .thesis-box{background:linear-gradient(135deg,var(--surface2),var(--surface3));border:1px solid var(--border2);border-radius:var(--radius);padding:24px;position:relative;overflow:hidden}
 .thesis-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--purple),var(--cyan))}
 .thesis-tag{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent2);font-weight:600;margin-bottom:10px;display:inline-block;background:rgba(59,130,246,0.1);padding:3px 10px;border-radius:4px}
-.thesis-text{font-size:1.05rem;line-height:1.65;color:var(--text)}
-.thesis-text .sentence{display:block;margin-bottom:6px}
+.thesis-text{font-size:1.05rem;line-height:1.65;color:var(--text)}.thesis-text .sentence{display:block;margin-bottom:6px}
 .thesis-meta{display:flex;gap:16px;margin-top:14px;flex-wrap:wrap}
 .thesis-chip{font-size:0.72rem;padding:3px 10px;border-radius:4px;background:var(--surface);border:1px solid var(--border);color:var(--text2)}
-.thesis-chip.risk{border-color:var(--red);color:var(--red)}
-.thesis-chip.catalyst{border-color:var(--green);color:var(--green)}
-
-/* ── Fund Table ───────────────────────────────────────────────────── */
+.thesis-chip.risk{border-color:var(--red);color:var(--red)}.thesis-chip.catalyst{border-color:var(--green);color:var(--green)}
 .fund-table{width:100%;border-collapse:collapse;font-size:0.85rem}
 .fund-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border)}
 .fund-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -119,98 +76,49 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
 .alloc-pct{font-family:var(--mono);font-weight:600;color:var(--accent2)}
 .cash-label{font-size:0.75rem;color:var(--text3);font-style:italic}
-
-/* ── Sector Grid ──────────────────────────────────────────────────── */
 .sector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .sector-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px}
 .sector-score-ring{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:0.85rem;flex-shrink:0}
-.sector-info{flex:1;min-width:0}
-.sector-name{font-size:0.82rem;font-weight:600;margin-bottom:2px}
-.sector-reason{font-size:0.72rem;color:var(--text3);line-height:1.4}
-
-/* ── Sliders ──────────────────────────────────────────────────────── */
+.sector-info{flex:1;min-width:0}.sector-name{font-size:0.82rem;font-weight:600;margin-bottom:2px}.sector-reason{font-size:0.72rem;color:var(--text3);line-height:1.4}
 .slider-panel{display:grid;grid-template-columns:1fr;gap:16px}
 .slider-group{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px}
 .slider-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.slider-label{font-size:0.9rem;font-weight:600}
-.slider-weight{font-family:var(--mono);font-size:0.85rem;color:var(--accent2);font-weight:600}
+.slider-label{font-size:0.9rem;font-weight:600}.slider-weight{font-family:var(--mono);font-size:0.85rem;color:var(--accent2);font-weight:600}
 .slider-desc{font-size:0.72rem;color:var(--text3);margin-bottom:10px}
 .slider-track{display:flex;gap:4px;align-items:center}
-.slider-step{flex:1;height:8px;border-radius:4px;background:var(--surface3);cursor:pointer;transition:all .2s;position:relative}
-.slider-step.active{background:var(--accent)}
-.slider-step:hover{background:var(--border2)}
-.slider-step.active:hover{background:var(--accent2)}
-.slider-labels{display:flex;justify-content:space-between;margin-top:6px}
-.slider-labels span{font-size:0.62rem;color:var(--text3)}
-.slider-note{font-size:0.75rem;color:var(--amber);margin-top:12px;padding:8px 12px;background:var(--amber2);border-radius:6px;display:none}
-.slider-note.visible{display:block}
-
-/* ── Fund Manager ─────────────────────────────────────────────────── */
+.slider-step{flex:1;height:8px;border-radius:4px;background:var(--surface3);cursor:pointer;transition:all .2s}
+.slider-step.active{background:var(--accent)}.slider-step:hover{background:var(--border2)}.slider-step.active:hover{background:var(--accent2)}
+.slider-labels{display:flex;justify-content:space-between;margin-top:6px}.slider-labels span{font-size:0.62rem;color:var(--text3)}
+.slider-note{font-size:0.75rem;color:var(--amber);margin-top:12px;padding:8px 12px;background:var(--amber2);border-radius:6px;display:none}.slider-note.visible{display:block}
 .fund-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .fund-chip{display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:0.8rem;font-weight:500}
-.fund-chip .remove{color:var(--text3);cursor:pointer;font-size:0.7rem;margin-left:4px}
-.fund-chip .remove:hover{color:var(--red)}
+.fund-chip .remove{color:var(--text3);cursor:pointer;font-size:0.7rem;margin-left:4px}.fund-chip .remove:hover{color:var(--red)}
 .fund-chip.mm{border-color:var(--text3);color:var(--text3)}
 .fund-input-row{display:flex;gap:8px;margin-top:12px}
 .fund-input-row input{flex:1;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.85rem}
 .fund-input-row input:focus{border-color:var(--accent)}
 .fund-input-row textarea{flex:1;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.85rem;min-height:60px;resize:vertical}
-
-/* ── Allocation Pie (CSS only) ────────────────────────────────────── */
 .alloc-summary{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center}
-.pie-wrapper{width:180px;height:180px;margin:0 auto}
-.alloc-legend{display:grid;gap:6px}
-.alloc-legend-item{display:flex;align-items:center;gap:8px;font-size:0.82rem}
-.alloc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-
-/* ── History ──────────────────────────────────────────────────────── */
+.alloc-legend{display:grid;gap:6px}.alloc-legend-item{display:flex;align-items:center;gap:8px;font-size:0.82rem}.alloc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .history-card{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center}
-.history-date{font-family:var(--mono);font-size:0.78rem;color:var(--text3);white-space:nowrap}
-.history-theme{font-size:0.85rem;font-weight:500}
-.history-accuracy{font-family:var(--mono);font-weight:700;font-size:0.9rem}
-
-/* ── Admin Panel ──────────────────────────────────────────────────── */
+.history-date{font-family:var(--mono);font-size:0.78rem;color:var(--text3);white-space:nowrap}.history-theme{font-size:0.85rem;font-weight:500}.history-accuracy{font-family:var(--mono);font-weight:700;font-size:0.9rem}
 .admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .api-status-card{padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)}
-.api-name{font-size:0.78rem;font-weight:600;margin-bottom:4px}
-.api-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
-.api-dot.ok{background:var(--green)}
-.api-dot.err{background:var(--red)}
-
-/* ── Risk Modal ───────────────────────────────────────────────────── */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}
-.modal-overlay.active{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:400px;width:90%;position:relative}
-.modal h3{margin-bottom:16px;font-size:1.1rem}
-.risk-slider-wrap{margin:20px 0}
-.risk-slider-wrap input[type=range]{width:100%;accent-color:var(--accent)}
+.api-name{font-size:0.78rem;font-weight:600;margin-bottom:4px}.api-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}.api-dot.ok{background:var(--green)}.api-dot.err{background:var(--red)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}.modal-overlay.active{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:400px;width:90%}
+.modal h3{margin-bottom:16px;font-size:1.1rem}.risk-slider-wrap{margin:20px 0}.risk-slider-wrap input[type=range]{width:100%;accent-color:var(--accent)}
 .risk-display{text-align:center;font-size:2rem;font-weight:700;color:var(--accent2);font-family:var(--mono);margin:10px 0}
 .risk-desc{text-align:center;font-size:0.82rem;color:var(--text2);margin-bottom:16px}
-
-/* ── Banner ───────────────────────────────────────────────────────── */
-.banner{padding:10px 16px;border-radius:8px;font-size:0.82rem;margin-bottom:16px;display:none;align-items:center;gap:8px}
-.banner.active{display:flex}
+.banner{padding:10px 16px;border-radius:8px;font-size:0.82rem;margin-bottom:16px;display:none;align-items:center;gap:8px}.banner.active{display:flex}
 .banner.info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--accent2)}
 .banner.warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
-
-/* ── Responsive ───────────────────────────────────────────────────── */
 @media(max-width:768px){
-  .app-shell{padding:12px 14px 40px}
-  header{flex-direction:column;gap:12px;align-items:flex-start}
-  .alloc-summary{grid-template-columns:1fr}
-  .sector-grid{grid-template-columns:1fr}
-  .tab-bar{gap:0}
-  .tab-btn{padding:8px 12px;font-size:0.78rem}
-  .fund-table{font-size:0.78rem}
-  .fund-table th,.fund-table td{padding:8px 6px}
+  .app-shell{padding:12px 14px 40px}header{flex-direction:column;gap:12px;align-items:flex-start}
+  .alloc-summary{grid-template-columns:1fr}.sector-grid{grid-template-columns:1fr}.tab-bar{gap:0}.tab-btn{padding:8px 12px;font-size:0.78rem}
+  .fund-table{font-size:0.78rem}.fund-table th,.fund-table td{padding:8px 6px}
 }
-
-/* ── Empty State ──────────────────────────────────────────────────── */
-.empty-state{text-align:center;padding:48px 20px;color:var(--text3)}
-.empty-state h3{color:var(--text2);margin-bottom:8px;font-size:1.1rem}
-.empty-state p{font-size:0.85rem;margin-bottom:20px}
-
-/* ── Loading Spinner ──────────────────────────────────────────────── */
+.empty-state{text-align:center;padding:48px 20px;color:var(--text3)}.empty-state h3{color:var(--text2);margin-bottom:8px;font-size:1.1rem}.empty-state p{font-size:0.85rem;margin-bottom:20px}
 .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -219,32 +127,22 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 <script src="app.js"></script>
 
 <div class="app-shell">
-
-  <!-- ── Header ─────────────────────────────────────────────────────── -->
   <header>
-    <div class="logo">
-      <div class="logo-icon">FL</div>
-      <h1>FundLens <span>v3</span></h1>
-    </div>
+    <div class="logo"><div class="logo-icon">FL</div><h1>FundLens <span>v3</span></h1></div>
     <div class="header-right">
-      <div class="market-badge closed" id="marketBadge">
-        <span class="dot"></span> <span id="marketLabel">Checking...</span>
-      </div>
+      <div class="market-badge closed" id="marketBadge"><span class="dot"></span> <span id="marketLabel">Checking...</span></div>
       <button class="risk-badge" id="riskBadge" onclick="openRiskModal()">Risk: —</button>
     </div>
   </header>
 
-  <!-- ── Banners ────────────────────────────────────────────────────── -->
   <div class="banner info" id="cachedBanner">Using cached prices — Tiingo rate limit reached</div>
   <div class="banner info" id="closedBanner"></div>
 
-  <!-- ── Pipeline Progress ──────────────────────────────────────────── -->
   <div class="pipeline-bar" id="pipelineBar">
     <div class="pipeline-track"><div class="pipeline-fill" id="pipelineFill"></div></div>
     <div class="pipeline-label" id="pipelineLabel">Initializing...</div>
   </div>
 
-  <!-- ── Tabs ───────────────────────────────────────────────────────── -->
   <div class="tab-bar" id="tabBar">
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
     <button class="tab-btn" data-tab="funds">My Funds</button>
@@ -253,217 +151,92 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
     <button class="tab-btn" data-tab="admin" id="adminTab" style="display:none">Admin</button>
   </div>
 
-  <!-- ══════════════════════ DASHBOARD TAB ══════════════════════════ -->
+  <!-- DASHBOARD -->
   <div class="tab-content active" id="tab-dashboard">
-
-    <!-- Run Controls -->
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div>
-          <div class="card-title">Run Analysis</div>
-          <div class="card-subtitle">Gather world data, form thesis, score all funds</div>
-        </div>
+        <div><div class="card-title">Run Analysis</div><div class="card-subtitle">Gather world data, form thesis, score all funds</div></div>
         <div style="display:flex;align-items:center;gap:12px">
-          <label style="font-size:0.8rem;color:var(--text3);display:flex;align-items:center;gap:6px">
-            <input type="checkbox" id="refreshHoldings"> Refresh holdings from SEC
-          </label>
-          <button class="btn btn-primary" id="runBtn" onclick="runPipeline()">
-            Run Full Analysis
-          </button>
+          <label style="font-size:0.8rem;color:var(--text3);display:flex;align-items:center;gap:6px"><input type="checkbox" id="refreshHoldings"> Refresh holdings from SEC</label>
+          <button class="btn btn-primary" id="runBtn" onclick="runPipeline()">Run Full Analysis</button>
         </div>
       </div>
     </div>
-
-    <!-- Thesis -->
     <div id="thesisSection" style="display:none">
-      <div class="thesis-box" id="thesisBox">
-        <div class="thesis-tag" id="thesisTag"></div>
-        <div class="thesis-text" id="thesisText"></div>
-        <div class="thesis-meta" id="thesisMeta"></div>
-      </div>
+      <div class="thesis-box" id="thesisBox"><div class="thesis-tag" id="thesisTag"></div><div class="thesis-text" id="thesisText"></div><div class="thesis-meta" id="thesisMeta"></div></div>
     </div>
-
-    <!-- Fund Rankings -->
     <div class="card" id="rankingsCard" style="display:none">
-      <div class="card-header">
-        <div class="card-title">Fund Rankings</div>
-        <div class="card-subtitle" id="rankCount"></div>
-      </div>
+      <div class="card-header"><div class="card-title">Fund Rankings</div><div class="card-subtitle" id="rankCount"></div></div>
       <div style="overflow-x:auto">
-        <table class="fund-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Fund</th>
-              <th>Score</th>
-              <th>Status</th>
-              <th>Allocation</th>
-              <th>Trend</th>
-              <th>Found.</th>
-              <th>Room</th>
-              <th>Safe</th>
-              <th>Feel</th>
-            </tr>
-          </thead>
-          <tbody id="rankingsBody"></tbody>
-        </table>
+        <table class="fund-table"><thead><tr><th>#</th><th>Fund</th><th>Score</th><th>Status</th><th>Allocation</th><th>Trend</th><th>Found.</th><th>Room</th><th>Safe</th><th>Feel</th></tr></thead><tbody id="rankingsBody"></tbody></table>
       </div>
     </div>
-
-    <!-- Allocation Summary -->
     <div class="card" id="allocCard" style="display:none">
-      <div class="card-header">
-        <div class="card-title">Recommended Allocation</div>
-      </div>
-      <div class="alloc-summary">
-        <div>
-          <canvas id="pieCanvas" width="200" height="200"></canvas>
-        </div>
-        <div class="alloc-legend" id="allocLegend"></div>
-      </div>
+      <div class="card-header"><div class="card-title">Recommended Allocation</div></div>
+      <div class="alloc-summary"><div><canvas id="pieCanvas" width="200" height="200"></canvas></div><div class="alloc-legend" id="allocLegend"></div></div>
     </div>
-
-    <!-- Sector Scores -->
     <div class="card" id="sectorCard" style="display:none">
-      <div class="card-header">
-        <div class="card-title">Sector Outlook</div>
-      </div>
+      <div class="card-header"><div class="card-title">Sector Outlook</div></div>
       <div class="sector-grid" id="sectorGrid"></div>
     </div>
-
-    <!-- Empty state -->
-    <div class="empty-state" id="emptyDash">
-      <h3>Ready to analyze</h3>
-      <p>Add your funds, adjust your risk level, and run a full analysis.<br>FundLens will gather world data, form an investment thesis, and score every fund.</p>
-    </div>
+    <div class="empty-state" id="emptyDash"><h3>Ready to analyze</h3><p>Add your funds, adjust your risk level, and run a full analysis.<br>FundLens will gather world data, form an investment thesis, and score every fund.</p></div>
   </div>
 
-  <!-- ══════════════════════ FUNDS TAB ══════════════════════════════ -->
+  <!-- FUNDS -->
   <div class="tab-content" id="tab-funds">
     <div class="card">
-      <div class="card-header">
-        <div class="card-title">Fund Universe</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm btn-secondary" id="loadMyFundsBtn" style="display:none" onclick="loadMyFunds()">Load My Funds</button>
-        </div>
-      </div>
+      <div class="card-header"><div class="card-title">Fund Universe</div><div style="display:flex;gap:8px"><button class="btn btn-sm btn-secondary" id="loadMyFundsBtn" style="display:none" onclick="loadMyFunds()">Load My Funds</button></div></div>
       <div class="fund-list" id="fundList"></div>
-
-      <!-- Add methods -->
-      <div style="margin-top:20px">
-        <div class="card-subtitle" style="margin-bottom:8px">Add Fund</div>
-        <div class="fund-input-row">
-          <input type="text" id="addTickerInput" placeholder="Enter ticker symbol (e.g. VFWAX)" onkeydown="if(event.key==='Enter')addFundUI()">
-          <button class="btn btn-sm btn-primary" onclick="addFundUI()">Add</button>
-        </div>
-      </div>
-
-      <div style="margin-top:16px">
-        <div class="card-subtitle" style="margin-bottom:8px">Paste multiple tickers (comma or newline separated)</div>
-        <div class="fund-input-row">
-          <textarea id="bulkTickerInput" placeholder="AAPL, MSFT, GOOG&#10;or one per line"></textarea>
-          <button class="btn btn-sm btn-secondary" onclick="addBulkFunds()">Add All</button>
-        </div>
-      </div>
+      <div style="margin-top:20px"><div class="card-subtitle" style="margin-bottom:8px">Add Fund</div><div class="fund-input-row"><input type="text" id="addTickerInput" placeholder="Enter ticker symbol (e.g. VFWAX)" onkeydown="if(event.key==='Enter')addFundUI()"><button class="btn btn-sm btn-primary" onclick="addFundUI()">Add</button></div></div>
+      <div style="margin-top:16px"><div class="card-subtitle" style="margin-bottom:8px">Paste multiple tickers (comma or newline separated)</div><div class="fund-input-row"><textarea id="bulkTickerInput" placeholder="AAPL, MSFT, GOOG&#10;or one per line"></textarea><button class="btn btn-sm btn-secondary" onclick="addBulkFunds()">Add All</button></div></div>
     </div>
   </div>
 
-  <!-- ══════════════════════ WEIGHTS TAB ════════════════════════════ -->
+  <!-- WEIGHTS -->
   <div class="tab-content" id="tab-weights">
     <div class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Factor Weights</div>
-          <div class="card-subtitle">Adjust how much each signal matters in your analysis. All weights auto-normalize to 100%.</div>
-        </div>
-        <button class="btn btn-sm btn-secondary" onclick="resetWeights()">Reset to recommended</button>
-      </div>
+      <div class="card-header"><div><div class="card-title">Factor Weights</div><div class="card-subtitle">Adjust how much each signal matters in your analysis. All weights auto-normalize to 100%.</div></div><button class="btn btn-sm btn-secondary" onclick="resetWeights()">Reset to recommended</button></div>
       <div class="slider-note" id="sliderNote">Your weights differ from the recommended defaults. That's fine — your preferences are saved with every prediction so we can learn what works.</div>
       <div class="slider-panel" id="sliderPanel"></div>
     </div>
   </div>
 
-  <!-- ══════════════════════ HISTORY TAB ════════════════════════════ -->
+  <!-- HISTORY -->
   <div class="tab-content" id="tab-history">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Prediction History</div>
-        <div class="card-subtitle">Past analysis runs with accuracy tracking</div>
-      </div>
-      <div id="historyList"></div>
-      <div class="empty-state" id="emptyHistory" style="display:none">
-        <h3>No predictions yet</h3>
-        <p>Run your first analysis to start tracking predictions.</p>
-      </div>
-    </div>
+    <div class="card"><div class="card-header"><div class="card-title">Prediction History</div><div class="card-subtitle">Past analysis runs with accuracy tracking</div></div><div id="historyList"></div><div class="empty-state" id="emptyHistory" style="display:none"><h3>No predictions yet</h3><p>Run your first analysis to start tracking predictions.</p></div></div>
   </div>
 
-  <!-- ══════════════════════ ADMIN TAB ══════════════════════════════ -->
+  <!-- ADMIN -->
   <div class="tab-content" id="tab-admin">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">API Health Status</div>
-        <button class="btn btn-sm btn-secondary" onclick="checkHealth()">Refresh</button>
-      </div>
-      <div class="admin-grid" id="healthGrid"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Open Predictions Tracking</div></div>
-      <div id="adminTracking"></div>
-    </div>
+    <div class="card"><div class="card-header"><div class="card-title">API Health Status</div><button class="btn btn-sm btn-secondary" onclick="checkHealth()">Refresh</button></div><div class="admin-grid" id="healthGrid"></div></div>
+    <div class="card"><div class="card-header"><div class="card-title">Open Predictions Tracking</div></div><div id="adminTracking"><p style="color:var(--text3);font-size:0.85rem">Run a health check to populate tracking data.</p></div></div>
   </div>
-
 </div>
 
-<!-- ── Risk Modal ──────────────────────────────────────────────────── -->
+<!-- Risk Modal -->
 <div class="modal-overlay" id="riskModal">
   <div class="modal">
     <h3>Set Your Risk Level</h3>
     <p style="font-size:0.82rem;color:var(--text2);margin-bottom:12px">Higher risk means more aggressive equity allocation and concentrated positions.</p>
     <div class="risk-display" id="riskDisplay">5</div>
     <div class="risk-desc" id="riskDesc"></div>
-    <div class="risk-slider-wrap">
-      <input type="range" min="1" max="9" value="5" id="riskSlider" oninput="updateRiskDisplay()">
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-      <button class="btn btn-secondary" onclick="closeRiskModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveRisk()">Save</button>
-    </div>
+    <div class="risk-slider-wrap"><input type="range" min="1" max="9" value="5" id="riskSlider" oninput="updateRiskDisplay()"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="closeRiskModal()">Cancel</button><button class="btn btn-primary" onclick="saveRisk()">Save</button></div>
   </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════════════
-//  UI Controller
-// ═══════════════════════════════════════════════════════════════════════════════
-
 const RISK_DESCRIPTIONS = {
-  1: 'Ultra conservative — Heavy bonds, minimal equity',
-  2: 'Very conservative — Mostly bonds, some equity',
-  3: 'Conservative — Bonds-heavy, moderate equity',
-  4: 'Moderate-conservative — Balanced with bond tilt',
-  5: 'Balanced — Even mix of equity and bonds',
-  6: 'Moderate-aggressive — Equity-heavy with some bonds',
-  7: 'Aggressive — Mostly equity, minimal bonds',
-  8: 'Very aggressive — Heavy equity concentration',
-  9: 'Maximum growth — Nearly all equity, high concentration',
+  1:'Ultra conservative — Heavy bonds, minimal equity',2:'Very conservative — Mostly bonds, some equity',
+  3:'Conservative — Bonds-heavy, moderate equity',4:'Moderate-conservative — Balanced with bond tilt',
+  5:'Balanced — Even mix of equity and bonds',6:'Moderate-aggressive — Equity-heavy with some bonds',
+  7:'Aggressive — Mostly equity, minimal bonds',8:'Very aggressive — Heavy equity concentration',
+  9:'Maximum growth — Nearly all equity, high concentration',
 };
+const PIE_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#a78bfa','#22d3ee','#f472b6','#84cc16','#fb923c','#38bdf8','#c084fc','#fbbf24','#34d399','#f87171','#818cf8','#2dd4bf','#e879f9','#facc15','#4ade80','#fb7185','#a3e635','#94a3b8'];
 
-const PIE_COLORS = [
-  '#3b82f6','#22c55e','#f59e0b','#ef4444','#a78bfa','#22d3ee',
-  '#f472b6','#84cc16','#fb923c','#38bdf8','#c084fc','#fbbf24',
-  '#34d399','#f87171','#818cf8','#2dd4bf','#e879f9','#facc15',
-  '#4ade80','#fb7185','#a3e635','#94a3b8',
-];
-
-// ── Init ──────────────────────────────────────────────────────────────
 async function init() {
-  // Check admin
-  if (new URLSearchParams(window.location.search).get('admin') === '1') {
-    document.getElementById('adminTab').style.display = '';
-  }
-
-  // Tab switching
+  if (new URLSearchParams(window.location.search).get('admin') === '1') document.getElementById('adminTab').style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -472,290 +245,118 @@ async function init() {
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     });
   });
-
-  // Event listeners
   FundLens.on('pipeline', ({ step, progress }) => {
     document.getElementById('pipelineBar').classList.add('active');
     document.getElementById('pipelineFill').style.width = progress + '%';
     document.getElementById('pipelineLabel').textContent = step;
   });
-
   FundLens.on('complete', (data) => {
     document.getElementById('pipelineBar').classList.remove('active');
     renderResults(data);
+    loadHistory(); // FIX #29: refresh history after analysis
   });
-
   FundLens.on('error', (msg) => {
     document.getElementById('pipelineBar').classList.remove('active');
     document.getElementById('pipelineLabel').textContent = 'Error: ' + msg;
     alert('Pipeline error: ' + msg);
   });
-
-  // Load data
   try {
     await FundLens.loadProfile();
     await FundLens.loadFunds();
     await FundLens.checkMarket();
-    updateMarketBadge();
-    updateRiskBadge();
-    renderFundList();
-    renderSliders();
+    updateMarketBadge(); updateRiskBadge(); renderFundList(); renderSliders();
     await loadHistory();
-
-    // Show Robert's button
-    if (FundLens.state.userId === 'robert') {
-      document.getElementById('loadMyFundsBtn').style.display = '';
-    }
-
-    // Silently track open predictions
+    if (FundLens.state.userId === 'robert') document.getElementById('loadMyFundsBtn').style.display = '';
     FundLens.trackOpenPredictions();
-  } catch (e) {
-    console.error('Init error:', e);
-  }
+  } catch (e) { console.error('Init error:', e); }
 }
 
-// ── Market Badge ──────────────────────────────────────────────────────
 function updateMarketBadge() {
-  const el = document.getElementById('marketBadge');
-  const label = document.getElementById('marketLabel');
-  if (FundLens.state.marketOpen) {
-    el.className = 'market-badge open';
-    label.textContent = 'Market Open';
-  } else {
-    el.className = 'market-badge closed';
-    label.textContent = 'Market Closed';
-  }
+  const el = document.getElementById('marketBadge'), label = document.getElementById('marketLabel');
+  if (FundLens.state.marketOpen) { el.className = 'market-badge open'; label.textContent = 'Market Open'; }
+  else { el.className = 'market-badge closed'; label.textContent = 'Market Closed'; }
 }
+function updateRiskBadge() { document.getElementById('riskBadge').textContent = `Risk: ${FundLens.state.profile?.risk_level || 5}/9`; }
+function openRiskModal() { const l = FundLens.state.profile?.risk_level || 5; document.getElementById('riskSlider').value = l; document.getElementById('riskDisplay').textContent = l; document.getElementById('riskDesc').textContent = RISK_DESCRIPTIONS[l]; document.getElementById('riskModal').classList.add('active'); }
+function closeRiskModal() { document.getElementById('riskModal').classList.remove('active'); }
+function updateRiskDisplay() { const v = parseInt(document.getElementById('riskSlider').value); document.getElementById('riskDisplay').textContent = v; document.getElementById('riskDesc').textContent = RISK_DESCRIPTIONS[v]; }
+async function saveRisk() { await FundLens.saveProfile({ risk_level: parseInt(document.getElementById('riskSlider').value) }); updateRiskBadge(); closeRiskModal(); }
 
-function updateRiskBadge() {
-  const level = FundLens.state.profile?.risk_level || 5;
-  document.getElementById('riskBadge').textContent = `Risk: ${level}/9`;
-}
-
-// ── Risk Modal ────────────────────────────────────────────────────────
-function openRiskModal() {
-  const level = FundLens.state.profile?.risk_level || 5;
-  document.getElementById('riskSlider').value = level;
-  document.getElementById('riskDisplay').textContent = level;
-  document.getElementById('riskDesc').textContent = RISK_DESCRIPTIONS[level];
-  document.getElementById('riskModal').classList.add('active');
-}
-
-function closeRiskModal() {
-  document.getElementById('riskModal').classList.remove('active');
-}
-
-function updateRiskDisplay() {
-  const v = parseInt(document.getElementById('riskSlider').value);
-  document.getElementById('riskDisplay').textContent = v;
-  document.getElementById('riskDesc').textContent = RISK_DESCRIPTIONS[v];
-}
-
-async function saveRisk() {
-  const v = parseInt(document.getElementById('riskSlider').value);
-  await FundLens.saveProfile({ risk_level: v });
-  updateRiskBadge();
-  closeRiskModal();
-}
-
-// ── Fund Management ───────────────────────────────────────────────────
 function renderFundList() {
   const el = document.getElementById('fundList');
-  if (!FundLens.state.funds.length) {
-    el.innerHTML = '<span style="color:var(--text3);font-size:0.85rem">No funds added yet.</span>';
-    return;
-  }
+  if (!FundLens.state.funds.length) { el.innerHTML = '<span style="color:var(--text3);font-size:0.85rem">No funds added yet.</span>'; return; }
   el.innerHTML = FundLens.state.funds.map(f => {
     const isMM = FundLens.MONEY_MARKET.includes(f.ticker);
-    return `<div class="fund-chip ${isMM ? 'mm' : ''}">
-      ${f.ticker} ${isMM ? '(cash)' : ''}
-      <span class="remove" onclick="removeFundUI('${f.ticker}')">&times;</span>
-    </div>`;
+    return `<div class="fund-chip ${isMM?'mm':''}">${f.ticker} ${isMM?'(cash)':''}<span class="remove" onclick="removeFundUI('${f.ticker}')">&times;</span></div>`;
   }).join('');
 }
+async function addFundUI() { const inp = document.getElementById('addTickerInput'), t = inp.value.trim(); if (!t) return; await FundLens.addFund(t); inp.value = ''; renderFundList(); }
+async function addBulkFunds() { const raw = document.getElementById('bulkTickerInput').value; for (const t of raw.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)) await FundLens.addFund(t); document.getElementById('bulkTickerInput').value = ''; renderFundList(); }
+async function removeFundUI(ticker) { await FundLens.removeFund(ticker); renderFundList(); }
+async function loadMyFunds() { await FundLens.loadRobertFunds(); renderFundList(); }
 
-async function addFundUI() {
-  const inp = document.getElementById('addTickerInput');
-  const t = inp.value.trim();
-  if (!t) return;
-  await FundLens.addFund(t);
-  inp.value = '';
-  renderFundList();
-}
-
-async function addBulkFunds() {
-  const raw = document.getElementById('bulkTickerInput').value;
-  const tickers = raw.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean);
-  for (const t of tickers) {
-    await FundLens.addFund(t);
-  }
-  document.getElementById('bulkTickerInput').value = '';
-  renderFundList();
-}
-
-async function removeFundUI(ticker) {
-  await FundLens.removeFund(ticker);
-  renderFundList();
-}
-
-async function loadMyFunds() {
-  await FundLens.loadRobertFunds();
-  renderFundList();
-}
-
-// ── Sliders ───────────────────────────────────────────────────────────
 function renderSliders() {
   const panel = document.getElementById('sliderPanel');
   const weights = FundLens.state.profile?.factor_weights || { ...FundLens.DEFAULT_WEIGHTS };
-  const factors = ['trend', 'foundations', 'room', 'safe', 'feel'];
-  const factorNames = {
-    trend: 'Follow the Trend',
-    foundations: 'Strong Foundations',
-    room: 'Read the Room',
-    safe: 'Play it Safe',
-    feel: 'Market Feel',
-  };
-  const factorDescs = {
-    trend: 'Momentum (20d/60d/120d blend) + Technical (price vs 50/200d MA)',
-    foundations: 'Quality: ROE, gross margin, Piotroski F-Score, revenue growth',
-    room: 'Macro: FRED + BLS + Treasury + News sentiment',
-    safe: 'Volatility overlay — higher = more defensive',
-    feel: 'Crowd sentiment — Finnhub + GDELT aggregate tone',
-  };
-
+  const factors = ['trend','foundations','room','safe','feel'];
+  const names = { trend:'Follow the Trend', foundations:'Strong Foundations', room:'Read the Room', safe:'Play it Safe', feel:'Market Feel' };
+  const descs = { trend:'Momentum + Technical signals', foundations:'Quality: ROE, gross margin, Piotroski, revenue growth', room:'Macro: FRED + BLS + Treasury + News sentiment', safe:'Volatility overlay — higher = more defensive', feel:'Crowd sentiment — Finnhub + GDELT tone' };
   panel.innerHTML = factors.map(f => {
-    const currentWeight = weights[f] || FundLens.DEFAULT_WEIGHTS[f];
-    const defaultWeight = FundLens.DEFAULT_WEIGHTS[f];
-    // Find closest slider position
-    const ratios = FundLens.SLIDER_MULTIPLIERS.map(m => Math.abs(currentWeight - defaultWeight * m));
-    let activeIdx = ratios.indexOf(Math.min(...ratios));
-
-    return `<div class="slider-group">
-      <div class="slider-header">
-        <div class="slider-label">${factorNames[f]}</div>
-        <div class="slider-weight" id="weight-${f}">${currentWeight}%</div>
-      </div>
-      <div class="slider-desc">${factorDescs[f]}</div>
-      <div class="slider-track" data-factor="${f}">
-        ${FundLens.SLIDER_MULTIPLIERS.map((_, i) => `<div class="slider-step ${i <= activeIdx ? 'active' : ''}" data-idx="${i}" onclick="setSlider('${f}',${i})"></div>`).join('')}
-      </div>
-      <div class="slider-labels">
-        <span>${FundLens.SLIDER_LABELS[f][0]}</span>
-        <span>${FundLens.SLIDER_LABELS[f][4]}</span>
-      </div>
-    </div>`;
+    const cw = weights[f] || FundLens.DEFAULT_WEIGHTS[f], dw = FundLens.DEFAULT_WEIGHTS[f];
+    const ratios = FundLens.SLIDER_MULTIPLIERS.map(m => Math.abs(cw - dw * m));
+    const ai = ratios.indexOf(Math.min(...ratios));
+    return `<div class="slider-group"><div class="slider-header"><div class="slider-label">${names[f]}</div><div class="slider-weight">${cw}%</div></div><div class="slider-desc">${descs[f]}</div><div class="slider-track" data-factor="${f}">${FundLens.SLIDER_MULTIPLIERS.map((_, i) => `<div class="slider-step ${i<=ai?'active':''}" onclick="setSlider('${f}',${i})"></div>`).join('')}</div><div class="slider-labels"><span>${FundLens.SLIDER_LABELS[f][0]}</span><span>${FundLens.SLIDER_LABELS[f][4]}</span></div></div>`;
   }).join('');
-
-  checkSliderNote();
-}
-
-async function setSlider(factor, idx) {
-  const weights = FundLens.state.profile?.factor_weights || { ...FundLens.DEFAULT_WEIGHTS };
-  const updated = FundLens.normalizeWeights(weights, factor, idx);
-  await FundLens.saveProfile({ factor_weights: updated });
-  renderSliders();
-}
-
-function resetWeights() {
-  FundLens.saveProfile({ factor_weights: { ...FundLens.DEFAULT_WEIGHTS } });
-  renderSliders();
-}
-
-function checkSliderNote() {
-  const w = FundLens.state.profile?.factor_weights || {};
   const d = FundLens.DEFAULT_WEIGHTS;
-  const differs = Object.keys(d).some(k => Math.abs((w[k] || d[k]) - d[k]) > 2);
-  document.getElementById('sliderNote').classList.toggle('visible', differs);
+  document.getElementById('sliderNote').classList.toggle('visible', Object.keys(d).some(k => Math.abs((weights[k]||d[k]) - d[k]) > 2));
 }
+async function setSlider(factor, idx) { await FundLens.saveProfile({ factor_weights: FundLens.normalizeWeights(FundLens.state.profile?.factor_weights || { ...FundLens.DEFAULT_WEIGHTS }, factor, idx) }); renderSliders(); }
+function resetWeights() { FundLens.saveProfile({ factor_weights: { ...FundLens.DEFAULT_WEIGHTS } }); renderSliders(); }
 
-// ── Run Pipeline ──────────────────────────────────────────────────────
 async function runPipeline() {
   if (FundLens.state.isRunning) return;
-  if (!FundLens.state.funds.length) {
-    alert('Add some funds first!');
-    return;
-  }
+  if (!FundLens.state.funds.length) { alert('Add some funds first!'); return; }
   const btn = document.getElementById('runBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Running...';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running...';
   document.getElementById('emptyDash').style.display = 'none';
-
-  await FundLens.runAnalysis({
-    refreshHoldings: document.getElementById('refreshHoldings').checked,
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'Run Full Analysis';
+  // Clear old banners
+  document.getElementById('cachedBanner').classList.remove('active');
+  document.getElementById('closedBanner').classList.remove('active');
+  await FundLens.runAnalysis({ refreshHoldings: document.getElementById('refreshHoldings').checked });
+  btn.disabled = false; btn.textContent = 'Run Full Analysis';
 }
 
-// ── Render Results ────────────────────────────────────────────────────
 function renderResults(data) {
-  // Thesis
   const { thesis, sectorScores, scores, allocation, thesisData } = data;
   document.getElementById('thesisSection').style.display = '';
   document.getElementById('thesisTag').textContent = thesisData?.dominant_theme || 'Investment Thesis';
-  document.getElementById('thesisText').innerHTML = `
-    <span class="sentence">${thesis.sentence1}</span>
-    <span class="sentence">${thesis.sentence2}</span>
-    <span class="sentence">${thesis.sentence3}</span>
-  `;
-
+  document.getElementById('thesisText').innerHTML = `<span class="sentence">${thesis.sentence1}</span><span class="sentence">${thesis.sentence2}</span><span class="sentence">${thesis.sentence3}</span>`;
   const metaEl = document.getElementById('thesisMeta');
-  const risks = thesisData?.risk_factors || [];
-  const catalysts = thesisData?.catalysts || [];
-  metaEl.innerHTML =
-    risks.map(r => `<span class="thesis-chip risk">${r}</span>`).join('') +
-    catalysts.map(c => `<span class="thesis-chip catalyst">${c}</span>`).join('');
+  metaEl.innerHTML = (thesisData?.risk_factors||[]).map(r => `<span class="thesis-chip risk">${r}</span>`).join('') + (thesisData?.catalysts||[]).map(c => `<span class="thesis-chip catalyst">${c}</span>`).join('');
 
-  // Rankings
+  // FIX #17: rank numbers skip cash funds
   document.getElementById('rankingsCard').style.display = '';
-  document.getElementById('rankCount').textContent = `${scores.length} funds ranked`;
+  const nonCash = scores.filter(f => !f.isCash);
+  document.getElementById('rankCount').textContent = `${nonCash.length} funds ranked`;
+  let eqRank = 0;
   const tbody = document.getElementById('rankingsBody');
-  tbody.innerHTML = scores.map((f, i) => {
+  tbody.innerHTML = scores.map(f => {
     if (f.isCash) {
-      return `<tr>
-        <td class="rank-num">—</td>
-        <td><span class="fund-ticker">${f.ticker}</span></td>
-        <td><span class="cash-label">Money Market</span></td>
-        <td></td>
-        <td class="alloc-pct">${(allocation.find(a => a.ticker === f.ticker)?.pct || 0).toFixed(1)}%</td>
-        <td colspan="5"></td>
-      </tr>`;
+      return `<tr><td class="rank-num">—</td><td><span class="fund-ticker">${f.ticker}</span></td><td><span class="cash-label">Money Market</span></td><td></td><td class="alloc-pct">${(allocation.find(a=>a.ticker===f.ticker)?.pct||0).toFixed(1)}%</td><td colspan="5"></td></tr>`;
     }
-    const scoreColor = f.weightedScore >= 7 ? 'var(--green)' : f.weightedScore >= 4 ? 'var(--amber)' : 'var(--red)';
-    const alloc = allocation.find(a => a.ticker === f.ticker);
+    eqRank++;
+    const sc = f.weightedScore >= 7 ? 'var(--green)' : f.weightedScore >= 4 ? 'var(--amber)' : 'var(--red)';
+    const al = allocation.find(a=>a.ticker===f.ticker);
     const fs = f.factorScores || {};
-    return `<tr>
-      <td class="rank-num">${i + 1}</td>
-      <td><span class="fund-ticker">${f.ticker}</span></td>
-      <td>
-        <div class="score-bar">
-          <div class="score-bar-track"><div class="score-bar-fill" style="width:${f.weightedScore * 10}%;background:${scoreColor}"></div></div>
-          <span class="score-val" style="color:${scoreColor}">${f.weightedScore.toFixed(2)}</span>
-        </div>
-      </td>
-      <td>${f.isBreakaway ? '<span class="breakaway-badge">Breakaway</span>' : ''}</td>
-      <td class="alloc-pct">${(alloc?.pct || 0).toFixed(1)}%</td>
-      <td style="font-family:var(--mono);font-size:0.78rem">${(fs.trend || 0).toFixed(2)}</td>
-      <td style="font-family:var(--mono);font-size:0.78rem">${(fs.foundations || 0).toFixed(2)}</td>
-      <td style="font-family:var(--mono);font-size:0.78rem">${(fs.room || 0).toFixed(2)}</td>
-      <td style="font-family:var(--mono);font-size:0.78rem">${(fs.safe || 0).toFixed(2)}</td>
-      <td style="font-family:var(--mono);font-size:0.78rem">${(fs.feel || 0).toFixed(2)}</td>
-    </tr>`;
+    return `<tr><td class="rank-num">${eqRank}</td><td><span class="fund-ticker">${f.ticker}</span></td><td><div class="score-bar"><div class="score-bar-track"><div class="score-bar-fill" style="width:${f.weightedScore*10}%;background:${sc}"></div></div><span class="score-val" style="color:${sc}">${f.weightedScore.toFixed(2)}</span></div></td><td>${f.isBreakaway?'<span class="breakaway-badge">Breakaway</span>':''}</td><td class="alloc-pct">${(al?.pct||0).toFixed(1)}%</td><td style="font-family:var(--mono);font-size:0.78rem">${(fs.trend||0).toFixed(2)}</td><td style="font-family:var(--mono);font-size:0.78rem">${(fs.foundations||0).toFixed(2)}</td><td style="font-family:var(--mono);font-size:0.78rem">${(fs.room||0).toFixed(2)}</td><td style="font-family:var(--mono);font-size:0.78rem">${(fs.safe||0).toFixed(2)}</td><td style="font-family:var(--mono);font-size:0.78rem">${(fs.feel||0).toFixed(2)}</td></tr>`;
   }).join('');
 
-  // Allocation pie
   renderPie(allocation);
-
-  // Sector scores
   renderSectors(sectorScores);
 
-  // Price banners
-  if (FundLens.state.usingCachedPrices) {
-    document.getElementById('cachedBanner').classList.add('active');
-  }
+  if (FundLens.state.usingCachedPrices) document.getElementById('cachedBanner').classList.add('active');
   if (!data.marketOpen && data.navDate) {
-    const dateStr = new Date(data.navDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const dateStr = new Date(data.navDate).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
     const banner = document.getElementById('closedBanner');
     banner.textContent = `Market closed — prices from last close (${dateStr})`;
     banner.classList.add('active');
@@ -764,114 +365,55 @@ function renderResults(data) {
 
 function renderPie(alloc) {
   document.getElementById('allocCard').style.display = '';
-  const canvas = document.getElementById('pieCanvas');
-  const ctx = canvas.getContext('2d');
-  const sorted = [...alloc].sort((a, b) => b.pct - a.pct).filter(a => a.pct > 0);
-  const total = sorted.reduce((s, a) => s + a.pct, 0) || 100;
-
-  ctx.clearRect(0, 0, 200, 200);
-  const cx = 100, cy = 100, r = 85;
-  let startAngle = -Math.PI / 2;
-
-  sorted.forEach((a, i) => {
-    const slice = (a.pct / total) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-    ctx.closePath();
-    ctx.fillStyle = PIE_COLORS[i % PIE_COLORS.length];
-    ctx.fill();
-    startAngle += slice;
-  });
-
-  // Inner circle for donut effect
-  ctx.beginPath();
-  ctx.arc(cx, cy, 50, 0, Math.PI * 2);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
-  ctx.fill();
-
-  // Legend
-  const legend = document.getElementById('allocLegend');
-  legend.innerHTML = sorted.map((a, i) =>
-    `<div class="alloc-legend-item">
-      <div class="alloc-dot" style="background:${PIE_COLORS[i % PIE_COLORS.length]}"></div>
-      <span style="font-family:var(--mono);font-weight:600">${a.ticker}</span>
-      <span style="color:var(--text3);margin-left:auto">${a.pct.toFixed(1)}%</span>
-      <span style="color:var(--text3);font-size:0.72rem">${a.type}</span>
-    </div>`
-  ).join('');
+  const canvas = document.getElementById('pieCanvas'), ctx = canvas.getContext('2d');
+  const sorted = [...alloc].sort((a,b)=>b.pct-a.pct).filter(a=>a.pct>0);
+  const total = sorted.reduce((s,a)=>s+a.pct,0)||100;
+  ctx.clearRect(0,0,200,200);
+  let startAngle = -Math.PI/2;
+  sorted.forEach((a,i) => { const slice = (a.pct/total)*Math.PI*2; ctx.beginPath(); ctx.moveTo(100,100); ctx.arc(100,100,85,startAngle,startAngle+slice); ctx.closePath(); ctx.fillStyle=PIE_COLORS[i%PIE_COLORS.length]; ctx.fill(); startAngle+=slice; });
+  ctx.beginPath(); ctx.arc(100,100,50,0,Math.PI*2); ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--surface').trim(); ctx.fill();
+  document.getElementById('allocLegend').innerHTML = sorted.map((a,i) => `<div class="alloc-legend-item"><div class="alloc-dot" style="background:${PIE_COLORS[i%PIE_COLORS.length]}"></div><span style="font-family:var(--mono);font-weight:600">${a.ticker}</span><span style="color:var(--text3);margin-left:auto">${a.pct.toFixed(1)}%</span><span style="color:var(--text3);font-size:0.72rem">${a.type}</span></div>`).join('');
 }
 
 function renderSectors(sectorScores) {
   document.getElementById('sectorCard').style.display = '';
-  const grid = document.getElementById('sectorGrid');
-
-  const sorted = Object.entries(sectorScores).sort((a, b) => (b[1].score || b[1]) - (a[1].score || a[1]));
-  grid.innerHTML = sorted.map(([name, data]) => {
-    const score = data.score || data;
-    const reason = data.reason || '';
-    const bg = score >= 7 ? 'rgba(34,197,94,.15)' : score >= 4 ? 'rgba(245,158,11,.12)' : 'rgba(239,68,68,.12)';
-    const fg = score >= 7 ? 'var(--green)' : score >= 4 ? 'var(--amber)' : 'var(--red)';
-    return `<div class="sector-card">
-      <div class="sector-score-ring" style="background:${bg};color:${fg}">${score}</div>
-      <div class="sector-info">
-        <div class="sector-name">${name}</div>
-        <div class="sector-reason">${reason}</div>
-      </div>
-    </div>`;
+  const sorted = Object.entries(sectorScores).sort((a,b)=>(b[1].score||b[1])-(a[1].score||a[1]));
+  document.getElementById('sectorGrid').innerHTML = sorted.map(([name,data]) => {
+    const score = data.score||data, reason = data.reason||'';
+    const bg = score>=7?'rgba(34,197,94,.15)':score>=4?'rgba(245,158,11,.12)':'rgba(239,68,68,.12)';
+    const fg = score>=7?'var(--green)':score>=4?'var(--amber)':'var(--red)';
+    return `<div class="sector-card"><div class="sector-score-ring" style="background:${bg};color:${fg}">${score}</div><div class="sector-info"><div class="sector-name">${name}</div><div class="sector-reason">${reason}</div></div></div>`;
   }).join('');
 }
 
-// ── History ───────────────────────────────────────────────────────────
 async function loadHistory() {
   const cycles = await FundLens.loadPastCycles();
-  const el = document.getElementById('historyList');
-  const empty = document.getElementById('emptyHistory');
-
-  if (!cycles.length) {
-    empty.style.display = '';
-    el.innerHTML = '';
-    return;
-  }
+  const el = document.getElementById('historyList'), empty = document.getElementById('emptyHistory');
+  if (!cycles.length) { empty.style.display = ''; el.innerHTML = ''; return; }
   empty.style.display = 'none';
-
   el.innerHTML = cycles.map(c => {
-    const date = new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const acc = c.accuracy_score !== null ? `${c.accuracy_score.toFixed(1)}%` : c.status === 'open' ? 'Tracking...' : '—';
-    const accColor = c.accuracy_score >= 70 ? 'var(--green)' : c.accuracy_score >= 40 ? 'var(--amber)' : c.accuracy_score !== null ? 'var(--red)' : 'var(--text3)';
-    return `<div class="history-card">
-      <div class="history-date">${date}</div>
-      <div>
-        <div class="history-theme">${c.dominant_theme || 'Analysis'}</div>
-        <div style="font-size:0.75rem;color:var(--text3)">Risk ${c.risk_level || '?'} · ${c.status}</div>
-      </div>
-      <div class="history-accuracy" style="color:${accColor}">${acc}</div>
-    </div>`;
+    const date = new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    // FIX #18: explicit null check for accuracy_score
+    const hasAcc = c.accuracy_score !== null && c.accuracy_score !== undefined;
+    const acc = hasAcc ? `${Number(c.accuracy_score).toFixed(1)}%` : (c.status==='open'?'Tracking...':'—');
+    const accColor = hasAcc ? (c.accuracy_score>=70?'var(--green)':c.accuracy_score>=40?'var(--amber)':'var(--red)') : 'var(--text3)';
+    return `<div class="history-card"><div class="history-date">${date}</div><div><div class="history-theme">${c.dominant_theme||'Analysis'}</div><div style="font-size:0.75rem;color:var(--text3)">Risk ${c.risk_level||'?'} · ${c.status}</div></div><div class="history-accuracy" style="color:${accColor}">${acc}</div></div>`;
   }).join('');
 }
 
-// ── Admin ─────────────────────────────────────────────────────────────
 async function checkHealth() {
   const grid = document.getElementById('healthGrid');
   grid.innerHTML = '<div style="color:var(--text3);font-size:0.85rem">Checking...</div>';
   try {
     const res = await fetch('/health');
     const data = await res.json();
-    grid.innerHTML = Object.entries(data.checks).map(([name, status]) => {
-      const ok = status === 'ok';
-      return `<div class="api-status-card">
-        <div class="api-name"><span class="api-dot ${ok ? 'ok' : 'err'}"></span>${name}</div>
-        <div style="font-size:0.72rem;color:${ok ? 'var(--green)' : 'var(--red)'}">
-          ${ok ? 'Healthy' : status}
-        </div>
-      </div>`;
-    }).join('') + `<div class="api-status-card"><div class="api-name">Market</div><div style="font-size:0.72rem;color:var(--text2)">${data.marketOpen ? 'Open' : 'Closed'}</div></div>`;
-  } catch (e) {
-    grid.innerHTML = `<div style="color:var(--red)">Health check failed: ${e.message}</div>`;
-  }
+    grid.innerHTML = Object.entries(data.checks).map(([name,status]) => {
+      const ok = status==='ok';
+      return `<div class="api-status-card"><div class="api-name"><span class="api-dot ${ok?'ok':'err'}"></span>${name}</div><div style="font-size:0.72rem;color:${ok?'var(--green)':'var(--red)'}">${ok?'Healthy':status}</div></div>`;
+    }).join('') + `<div class="api-status-card"><div class="api-name">Market</div><div style="font-size:0.72rem;color:var(--text2)">${data.marketOpen?'Open':'Closed'}</div></div>`;
+  } catch (e) { grid.innerHTML = `<div style="color:var(--red)">Health check failed: ${e.message}</div>`; }
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────
 init();
 </script>
 </body>

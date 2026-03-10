@@ -1,12 +1,15 @@
 {
-  "name": "401k-fund-tracker",
-  "version": "1.0.0",
-  "description": "FundLens v2 - 401K Fund Analysis Platform",
+  "name": "fundlens-v3",
+  "version": "3.0.0",
+  "description": "FundLens v3 — 401(k) Intelligence Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
   }
 }

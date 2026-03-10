@@ -311,7 +311,7 @@ const supa = {
   async getHoldings(ticker){
     const rows=await this.h.get('holdings_cache',`?fund_ticker=eq.${ticker}&select=*&order=weight.desc`);
     if(!rows?.length)return null;
-    return{holdings:rows.map(r=>({name:r.holding_name||'',ticker:r.holding_ticker||'',pctVal:r.weight||0,valUSD:r.market_value||0,assetCat:r.asset_type||'',sector:r.sector||'',cusip:''})),fetchedAt:rows[0].indexed_at};
+    return{holdings:rows.map(r=>({name:r.holding_name||'',ticker:r.holding_ticker||'',pctVal:r.weight||0,valUSD:r.market_value||0,assetCat:r.asset_type||'',sector:r.sector||'',cusip:''})),fetchedAt:rows[0].cached_at};
   },
   async saveHoldings(ticker,holdings,fundName){
     // Try delete first; if it fails (503/RLS), proceed with upsert anyway
@@ -321,7 +321,7 @@ const supa = {
       await new Promise(r=>setTimeout(r,500)); // small delay before retry
     }
     const now=new Date().toISOString();
-    const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,indexed_at:now}));
+    const rows=holdings.slice(0,200).map(h=>({fund_ticker:ticker,holding_name:h.name||'',holding_ticker:h.ticker||null,weight:h.pctVal||0,market_value:h.valUSD||null,shares:h.shares||null,asset_type:h.assetCat||null,sector:h.sector||null,cached_at:now}));
     // resolution=ignore-duplicates: skip conflicts so partial saves still work
     return fetch('/api/supabase/holdings_cache?on_conflict=fund_ticker',{method:'POST',headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)}).then(r=>{if(!r.ok)r.text().then(t=>console.warn('holdings_cache upsert:',r.status,t.slice(0,100)));return null;}).catch(()=>null);
   },
@@ -1453,6 +1453,7 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
   // Save individual fund predictions (rankedFunds is already sorted by composite desc,
   // so index+1 is the predicted rank for this cycle)
   const predictions=rankedFunds.map((f,idx)=>({
+    id:crypto.randomUUID(),  // DB id column lacks DEFAULT gen_random_uuid() — generate client-side
     cycle_id:cycleId,
     user_id:prof.id,
     fund_ticker:f.ticker,
@@ -2694,12 +2695,12 @@ async function init(){
     try{
       const fundTickers=(prof.funds||DEFAULT_FUNDS).map(f=>f.ticker);
       const inFilter=fundTickers.map(t=>`"${t}"`).join(',');
-      const rows=await supa.h.get('holdings_cache',`?fund_ticker=in.(${inFilter})&select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,indexed_at&order=indexed_at.desc`);
+      const rows=await supa.h.get('holdings_cache',`?fund_ticker=in.(${inFilter})&select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,cached_at&order=cached_at.desc`);
       if(Array.isArray(rows)){
         const grouped={};
         rows.forEach(row=>{
           const ft=row.fund_ticker;if(!ft)return;
-          if(!grouped[ft])grouped[ft]={holdings:[],fetchedAt:row.indexed_at};
+          if(!grouped[ft])grouped[ft]={holdings:[],fetchedAt:row.cached_at};
           grouped[ft].holdings.push({name:row.holding_name||'',ticker:row.holding_ticker||'',pctVal:row.weight||0,valUSD:row.market_value||0,assetCat:row.asset_type||'',sector:row.sector||'',cusip:''});
         });
         Object.entries(grouped).forEach(([ticker,data])=>{
@@ -2752,6 +2753,12 @@ ALTER TABLE prediction_cycles ADD COLUMN IF NOT EXISTS lens_keywords JSONB;
 -- PATCH: Add missing columns to fund_predictions
 ALTER TABLE fund_predictions ADD COLUMN IF NOT EXISTS predicted_tier TEXT;
 ALTER TABLE fund_predictions ADD COLUMN IF NOT EXISTS nav_at_close NUMERIC(12,4);
+
+-- PATCH: holdings_cache — add cached_at column if table uses a different timestamp name
+-- (code was using indexed_at which caused 400 on every read/write, defeating the 90-day cache)
+ALTER TABLE holdings_cache ADD COLUMN IF NOT EXISTS cached_at TIMESTAMPTZ DEFAULT NOW();
+-- Also ensure fund_predictions.id auto-generates UUIDs (client generates as fallback)
+ALTER TABLE fund_predictions ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
 -- CREATE: Sector mapping cache (GICS classifications for fund holdings)
 CREATE TABLE IF NOT EXISTS sector_mappings (

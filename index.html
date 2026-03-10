@@ -163,8 +163,10 @@ const FRED_SERIES = {
   UNRATE:        'Unemployment Rate',
   BAMLH0A0HYM2:  'HY Credit Spread',
   // GOLDAMGBD228NLBM was discontinued by FRED — gold now fetched from Twelvedata in buildWorldIntelligence()
-  WTISPLC:       'WTI Crude',
-  NAPM:          'Manufacturing PMI',
+  // WTISPLC was a monthly WTI series (37-day lag) — replaced with DCOILWTICO (daily, ~8-day lag)
+  DCOILWTICO:    'WTI Crude Oil (daily)',
+  // NAPM was discontinued by FRED — replaced with INDPRO (Industrial Production Index, monthly)
+  INDPRO:        'Industrial Production',
   UMCSENT:       'Consumer Sentiment',  // replaces NMFSL (ISM Services PMI — not available on FRED)
   T10YIE:        'Breakeven Inflation 10Y',
   DTWEXBGS:      'USD Broad Index',
@@ -633,12 +635,12 @@ function buildGDELTQueries(fredData){
 
   const dxy   = f.DTWEXBGS;
   const gold  = f._goldUSD ? parseFloat(f._goldUSD) : null; // from Twelvedata
-  const oil   = f.WTISPLC;
+  const oil   = f.DCOILWTICO;  // daily WTI (was WTISPLC monthly — 37d lag)
   const hyCrd = f.BAMLH0A0HYM2;
   const yldCv = f.T10Y2Y;
   const fed   = f.DFF;
   const infBE = f.T10YIE;
-  const mfgPM = f.NAPM;
+  const indPro = f.INDPRO;     // Industrial Production (replaces discontinued NAPM)
   const svcPM = f.UMCSENT; // Consumer Sentiment (replaces unavailable ISM Services PMI)
 
   // Dollar weakness → international rotation story
@@ -694,10 +696,14 @@ function buildGDELTQueries(fredData){
     signals.push({priority:6, label:'Low oil / demand concern',
       query:`oil demand slowdown China economy global growth industrial activity ${yr}`});
 
-  // Manufacturing PMI contraction
-  if(mfgPM !== null && mfgPM < 49)
-    signals.push({priority:7, label:'Manufacturing contraction',
+  // Industrial Production contraction (replaces discontinued NAPM/Manufacturing PMI)
+  // INDPRO is indexed ~2017=100; year-over-year <0 indicates industrial contraction
+  if(indPro !== null && indPro < 100)
+    signals.push({priority:7, label:'Industrial production contraction',
       query:`manufacturing contraction industrial orders trade tariffs supply chain ${yr}`});
+  else if(indPro !== null && indPro > 104)
+    signals.push({priority:5, label:'Strong industrial output',
+      query:`manufacturing expansion industrial activity capex spending ${yr}`});
 
   // Consumer Sentiment weak (replaces Services PMI — scale ~50-100, low = pessimistic consumers)
   if(svcPM !== null && svcPM < 65)
@@ -933,9 +939,10 @@ Return ONLY valid JSON (no markdown, no explanation outside the JSON):
 // ═══════════════════════════════════════════════════════════════
 // GICS SECTOR MAPPING — FMP API with Claude fallback
 // ═══════════════════════════════════════════════════════════════
-// Session flag: if FMP returns 403 once, skip all subsequent calls
-// rather than burning 60 sequential requests that all fail identically.
-let FMP_AVAILABLE = true;
+// Session flag: FMP API was discontinued Aug 2025 — server route returns 410 Gone.
+// Initialized false so we skip all FMP calls and go straight to Claude fallback.
+// (Previously initialized true which wasted one roundtrip per session.)
+let FMP_AVAILABLE = false;
 
 async function mapTickerToSector(ticker, companyName){
   if(!ticker)return null;
@@ -1378,7 +1385,7 @@ async function generateInvestorThesis(rankedFunds, sectorScores, investmentThesi
   const rtLabel=rt<=2?'very conservative':rt<=4?'conservative-moderate':rt<=6?'balanced':rt<=7?'growth-oriented':'aggressive';
   
   const topFunds=allocationResult.slice(0,5).map(f=>`${f.ticker} (${f.allocationPct}%): ${f.name} — composite ${f.composite}, pred ROI ${f.roi>0?'+':''}${f.roi}%`).join('\n');
-  const avoidFunds=rankedFunds.filter(f=>f.tier.label==='WEAK').map(f=>f.ticker).join(', ')||'none';
+  const avoidFunds=rankedFunds.filter(f=>f.tier?.label==='WEAK').map(f=>f.ticker).join(', ')||'none';
   
   const sectorWinners=Object.entries(sectorScores||{}).filter(([,v])=>v.score>=7).map(([k,v])=>`${k} (${v.score}/10): ${v.reason}`).join('\n')||'No strong sector winners identified';
   const sectorLosers=Object.entries(sectorScores||{}).filter(([,v])=>v.score<=4).map(([k,v])=>`${k} (${v.score}/10): ${v.reason}`).join('\n')||'No major sector losers identified';
@@ -1519,17 +1526,69 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // Use this helper instead — creates a controller, fires abort after ms.
 function fetchSignal(ms){const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}
 
+// ─── Market Status ────────────────────────────────────────────
+// Time-based NYSE open check — no API needed.
+// NYSE regular hours: Mon–Fri 09:30–16:00 ET. Does NOT account for
+// market holidays (acceptable — worst case is one wasted Tiingo call on a holiday).
+function checkMarketOpen(){
+  const now=new Date();
+  const et=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const day=et.getDay(); // 0=Sun,6=Sat
+  const h=et.getHours()+et.getMinutes()/60;
+  APP.marketOpen=(day>=1&&day<=5&&h>=9.5&&h<16);
+  return APP.marketOpen;
+}
+
+// ─── Tiingo Cache Persistence ─────────────────────────────────
+// Persist the Tiingo price cache to localStorage so it survives page reloads.
+// Cache is keyed by the current US/Eastern trading date so it auto-invalidates
+// overnight (the next calendar day's prices will be different).
+function getTiingoTradingDate(){
+  return new Date().toLocaleDateString('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
+}
+function saveTiingoCache(){
+  if(APP.marketOpen)return; // only persist when market is closed — live prices shouldn't be cached across reloads
+  if(!Object.keys(APP.tiingoCache).length)return;
+  try{LS.set('tiingoCache',{date:getTiingoTradingDate(),cache:APP.tiingoCache});}catch(e){}
+}
+function restoreTiingoCache(){
+  if(APP.marketOpen)return; // if market is open, always fetch fresh prices
+  try{
+    const saved=LS.get('tiingoCache');
+    if(saved?.date===getTiingoTradingDate()&&saved?.cache&&Object.keys(saved.cache).length){
+      APP.tiingoCache=saved.cache;
+      console.log(`Tiingo cache restored from localStorage: ${Object.keys(APP.tiingoCache).length} tickers (trading date ${saved.date})`);
+    }
+  }catch(e){}
+}
+
 async function runPipeline(){
   if(APP.loading)return;
   APP.loading=true;APP.source='loading';APP.tiingoStale=false;APP.errors=[];
-  // Clear Tiingo cache each run — if market is open we want live prices,
-  // if market is closed the cache will be repopulated on first fetch this session.
-  if(APP.marketOpen) APP.tiingoCache={};
+
+  // Check market status — drives Tiingo cache behavior throughout this run
+  checkMarketOpen();
+  // Clear Tiingo cache when market is open (want fresh prices)
+  // When market is closed, restore from localStorage (survives page reloads)
+  if(APP.marketOpen){
+    APP.tiingoCache={};
+  }else{
+    restoreTiingoCache(); // no-op if cache already populated or date mismatch
+  }
+
   const funds=getFunds();
   const weights=getWeights();
   const tiingo={};
 
   function setPL(step,total,stepName,detail){APP.pipeline={step,total,stepName,detail};render()}
+
+  // ─────────────────────────────────────────────────────────────
+  // BACKGROUND: Manager quality scores — runs alongside EDGAR so
+  // both are ready by Step 5. Claude-assessed, 30-day Supabase cache.
+  // Previously this function was defined but never called — Foundations
+  // factor was always defaulting to 5.0.
+  // ─────────────────────────────────────────────────────────────
+  const managerScorePromise = fetchManagerScores(funds);
 
   // ─────────────────────────────────────────────────────────────
   // BACKGROUND: Start EDGAR fetch immediately — it's fully
@@ -1566,12 +1625,16 @@ async function runPipeline(){
   })();
 
   // ── STEP 1: World Intelligence ────────────────────────────────
-  // Always first: understand the macro environment before anything else.
-  // FRED 11 series fetched in parallel (~1s). GDELT 4 adaptive queries
-  // sequential (server enforces 5s between calls — ~25s total).
+  // Skip if world data is still fresh (within TTL set in Settings).
+  // FRED + GDELT + Claude re-run only when data is stale or missing.
   setPL(1,6,'STEP 1 / 6','Building world intelligence: FRED economic data + GDELT geopolitical news...');
-  const worldData=await buildWorldIntelligence(detail=>{setPL(1,6,'STEP 1 / 6',detail);});
-  APP.worldData=worldData;
+  if(worldDataIsFresh()&&APP.worldData&&APP.sectorScores){
+    console.log(`World data cache HIT — skipping FRED+GDELT fetch (fresh within ${activeProfile()?.worldDataTTL||DEFAULT_WORLD_TTL_MINS}min TTL)`);
+  }else{
+    const worldData=await buildWorldIntelligence(detail=>{setPL(1,6,'STEP 1 / 6',detail);});
+    APP.worldData=worldData;
+    APP.worldDataFetchedAt=new Date().toISOString(); // enables worldDataIsFresh() TTL check
+  }
 
   // ── STEP 2: Tiingo NAV + Sector ETF Momentum ─────────────────
   // Fund NAV, 63-day momentum, and Sharpe ratio from Tiingo daily prices.
@@ -1587,27 +1650,34 @@ async function runPipeline(){
   }
   setPL(2,6,'STEP 2 / 6','Fetching sector ETF momentum (XLK, XLF, XLE, XLV...)');
   const sectorMomentum=await fetchSectorMomentum();
+  // Persist Tiingo cache to localStorage now that all tickers are loaded.
+  // After-hours page reloads will restore from here, skipping all 33 network calls.
+  saveTiingoCache();
 
   // ── STEP 3: Strategy Formation ────────────────────────────────
-  // Claude Haiku now has all the information it needs: FRED macro data,
-  // GDELT headlines, and sector ETF momentum. It forms a complete
-  // investment thesis and scores all 11 GICS sectors 1–10.
-  // 3 retry attempts with 12s backoff + 1 clean final fallback.
+  // Skip if world data (and sector scores) are still fresh from cache.
+  // Claude Haiku scored sectors last run and nothing has changed — no need to re-run.
   setPL(3,6,'STEP 3 / 6','Forming investment strategy: Claude scoring all 11 GICS sectors...');
-  const sectorResult=await scoreSectorsWithClaude(worldData,sectorMomentum);
-  if(sectorResult){
-    APP.sectorScores=sectorResult.sectorScores;
-    APP.investmentThesis=sectorResult;
-    APP.dominantTheme=sectorResult.dominantTheme;
+  if(worldDataIsFresh()&&APP.sectorScores){
+    console.log('Sector scores cache HIT — skipping Claude strategy formation (world data still fresh)');
   }else{
-    APP.errors.push('Sector scoring failed — Claude returned no valid JSON. Scores will use seed data.');
-    console.error('STEP 3: scoreSectorsWithClaude returned null — all attempts failed');  }
+    const sectorResult=await scoreSectorsWithClaude(APP.worldData,sectorMomentum);
+    if(sectorResult){
+      APP.sectorScores=sectorResult.sectorScores;
+      APP.investmentThesis=sectorResult;
+      APP.dominantTheme=sectorResult.dominantTheme;
+    }else{
+      APP.errors.push('Sector scoring failed — Claude returned no valid JSON. Scores will use seed data.');
+      console.error('STEP 3: scoreSectorsWithClaude returned null — all attempts failed');
+    }
+  }
 
   // ── STEP 4: EDGAR Holdings ────────────────────────────────────
   // Await the background fetch started at t=0. In most cases this is
   // already complete (it ran during the 45–90s of steps 1–3).
-  // Shows "Awaiting..." if there's still a live EDGAR fetch in progress.
+  // Also await manager scores background Promise before Step 5 needs them.
   setPL(4,6,'STEP 4 / 6','Loading fund holdings from SEC EDGAR...');
+  await managerScorePromise; // ensure Foundations factor scores are ready
   const fundsWithHoldings=await edgarPromise;
   const holdingsLoaded=fundsWithHoldings.filter(f=>f.holdings?.length).length;
   console.log(`EDGAR: ${holdingsLoaded}/${funds.length} funds with holdings loaded`);
@@ -1637,19 +1707,19 @@ async function runPipeline(){
   APP.investorLetter=investorLetter;
 
   // Store predictions for 90-day tracking (prediction_cycles + fund_predictions tables)
-  APP.currentCycleId=await storePredictions(rankedFunds,worldData,APP.investmentThesis,allocationResult);
+  APP.currentCycleId=await storePredictions(rankedFunds,APP.worldData,APP.investmentThesis,allocationResult);
   
   // Assess data quality — drives staleness warning in UI
-  const fredOk=(worldData?.fredAvailable||0)>=4;
-  const gdeltOk=(worldData?.headlineCount||0)>=6;
+  const fredOk=(APP.worldData?.fredAvailable||0)>=4;
+  const gdeltOk=(APP.worldData?.headlineCount||0)>=6;
   let staleness='live';
   if(!fredOk&&!gdeltOk) staleness='stale';
   else if(!fredOk||!gdeltOk) staleness='partial';
   APP.dataQuality={
     fredOk, gdeltOk,
-    fredSeriesCount:worldData?.fredAvailable||0,
+    fredSeriesCount:APP.worldData?.fredAvailable||0,
     fredSeriesTotal:Object.keys(FRED_SERIES).length,
-    headlineCount:worldData?.headlineCount||0,
+    headlineCount:APP.worldData?.headlineCount||0,
     staleness,  // 'live' | 'partial' | 'stale'
     assessedAt:new Date().toLocaleString(),
   };
@@ -1657,6 +1727,10 @@ async function runPipeline(){
   APP.source=APP.sectorScores?'live':'partial';
   APP.lastRun=new Date().toLocaleString();
   APP.selectedFund=rankedFunds[0]?.ticker;
+  // Save delta state for next run (delta arrows in Rankings, thesis delta narrative)
+  APP.prevFundScores=Object.fromEntries(rankedFunds.map(f=>[f.ticker,f.composite]));
+  APP.prevSectorScores=APP.sectorScores?{...APP.sectorScores}:null;
+  APP.prevRunAt=new Date().toISOString();
   APP.loading=false;
   APP.pipeline={step:0,total:6,detail:'',stepName:''};
   render();
@@ -2313,7 +2387,18 @@ async function renderHistory(){
   const prof=activeProfile();
   if(!prof)return'<div style="padding:40px;text-align:center;color:var(--text3)">No profile active.</div>';
   
-  const cycles=await supa.getPredictionCycles(prof.id,12);
+  // Cache history data for 5 minutes — prevents N Supabase calls on every tab click
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+  const cacheValid = APP.historyCache?.fetchedAt &&
+    (Date.now() - new Date(APP.historyCache.fetchedAt).getTime()) < CACHE_TTL_MS;
+  
+  let cycles;
+  if(cacheValid){
+    cycles = APP.historyCache.cycles;
+  }else{
+    cycles = await supa.getPredictionCycles(prof.id,12);
+    APP.historyCache = {cycles, fetchedAt: new Date().toISOString()};
+  }
   if(!cycles?.length)return`<div style="padding:48px;text-align:center;color:var(--text3)">
     <div style="font-size:32px;margin-bottom:12px">📅</div>
     <div style="font-size:14px;font-weight:600;color:var(--text2)">No prediction history yet</div>
@@ -2581,7 +2666,7 @@ function renderPipelineOverlay(){
   const{step,total,detail}=APP.pipeline;
   const pct=(step/total)*100;
   const steps=[
-    {label:'World Intelligence',desc:'FRED economic data (parallel) + GDELT geopolitical news'},
+    {label:'World Intelligence',desc:'FRED economic data (sequential, 10 series) + GDELT geopolitical news'},
     {label:'Tiingo Prices + Sector ETFs',desc:'NAV, momentum, Sharpe + 11 sector ETF trends'},
     {label:'Strategy Formation',desc:'Claude: investment thesis + 11 GICS sector scores'},
     {label:'EDGAR Holdings',desc:'SEC N-PORT filings — 90-day cache (runs in background)'},
@@ -2625,8 +2710,9 @@ async function renderApp(){
   else if(APP.tab==='settings')content=renderSettings();
   else if(APP.tab==='history')content=await renderHistory();
   
-  const hasAlerts=APP.funds.some(f=>f.alert);
-  const alertBar=hasAlerts?`<div class="alert-banner"><span style="font-weight:700">Fund Alerts:</span>${APP.funds.filter(f=>f.alert).slice(0,4).map(f=>`<span><b style="font-family:'JetBrains Mono',monospace">${f.ticker}</b> — ${f.alert}</span>`).join(' · ')}</div>`:'';
+  const allAlertFunds=APP.funds.filter(f=>f.alert);
+  const hasAlerts=allAlertFunds.length>0;
+  const alertBar=hasAlerts?`<div class="alert-banner"><span style="font-weight:700">Fund Alerts:</span>${allAlertFunds.slice(0,4).map(f=>`<span><b style="font-family:'JetBrains Mono',monospace">${f.ticker}</b> — ${f.alert}</span>`).join(' · ')}${allAlertFunds.length>4?` <span style="font-weight:600">+${allAlertFunds.length-4} more — see Settings</span>`:''}</div>`:'';
   const themeBar=APP.dominantTheme?`<div style="background:var(--text);color:#fff;padding:5px 24px;font-size:11px;display:flex;align-items:center;gap:8px">
     <span style="font-weight:700;letter-spacing:0.5px">THESIS</span>
     <span>${APP.dominantTheme}</span>
@@ -2666,7 +2752,7 @@ async function renderApp(){
     <div class="fade-in">${content}</div>
     <div style="padding:7px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;justify-content:space-between;background:var(--surface)">
       <span>NOT FINANCIAL ADVICE · ANALYTICAL FRAMEWORK ONLY · Right stocks for right now · 30–90 day tactical window · predictions tracked vs actual</span>
-      <span>Holdings: SEC EDGAR N-PORT · Prices: Tiingo · Macro: FRED + GDELT · AI: claude-haiku-4-5 · Sectors: GICS + Finnhub</span>
+      <span>Holdings: SEC EDGAR N-PORT · Prices: Tiingo · Macro: FRED + GDELT · AI: claude-haiku-4-5 · Sectors: GICS + Claude</span>
     </div>
     ${renderPipelineOverlay()}`;
 }
@@ -2684,11 +2770,15 @@ async function render(){
 // INIT
 // ═══════════════════════════════════════════════════════════════
 async function init(){
+  checkMarketOpen(); // set APP.marketOpen before anything else
   APP.profiles=loadProfiles();
   if(APP.profiles.length){
     APP.activeProfile=APP.profiles[0].id;
     APP.wizard=false;
     const prof=activeProfile();
+    
+    // Restore Tiingo cache from localStorage if market is closed and date matches
+    restoreTiingoCache();
     
     // Preload holdings cache from Supabase — filtered to this profile's funds only
     // (BUG 9 FIX: was fetching ALL holdings without a fund filter — data leak + wasteful)

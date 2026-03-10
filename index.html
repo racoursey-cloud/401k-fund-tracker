@@ -2095,14 +2095,14 @@ function renderThesis(){
                       const clean = l.replace(/^[-•]\s*/,'');
                       // Bold the **text** markdown
                       const html = clean.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-                      return \`<li>\${html}</li>\`;
+                      return '<li>'+html+'</li>';
                     }).join('') +
                   '</ul>';
                 }
                 // Single line or no fund bullets — render as paragraph
                 // Still process markdown bold within prose
                 const html = lines.join(' ').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-                return \`<p>\${html}</p>\`;
+                return '<p>'+html+'</p>';
               }).join('');
             })()}</div>
           </div>

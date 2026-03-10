@@ -242,7 +242,7 @@ let APP = {
   investmentThesis:null, // Full thesis object from Claude
   tiingoStale:false,     // true if Tiingo served cached data due to rate limit
   dominantTheme:null,
-  dataQuality:null,      // {fredOk,gdeltOk,fredSeriesCount,headlineCount,claudeUsedWebSearch,assessedAt}
+  dataQuality:null,      // {fredOk,gdeltOk,fredSeriesCount,headlineCount,staleness,assessedAt}
   // Delta tracking — loaded from localStorage, updated each run
   prevSectorScores:null,   // sector scores from previous run (for Thesis delta narrative)
   prevFundScores:{},       // ticker → composite from previous run (for Rankings arrows)
@@ -259,6 +259,7 @@ let APP = {
   holdingsCache:{},
   sectorMappingCache:{},  // ticker → sector (in-memory, also Supabase)
   diversificationMode:false, // portfolio tab toggle
+  applyLens:false,           // opt-in per run — applies marketLens keywords to Claude prompt
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -356,7 +357,7 @@ const supa = {
     return this.h.get('prediction_cycles',`?user_id=eq.${userId}&order=created_at.desc&limit=${limit}`);
   },
   async getFundPredictions(cycleId){
-    return this.h.get('fund_predictions',`?cycle_id=eq.${cycleId}&order=predicted_composite.desc`);
+    return this.h.get('fund_predictions',`?cycle_id=eq.${cycleId}&order=composite_score.desc`);
   },
   async updateFundPrediction(id,updates){
     return fetch(`/api/supabase/fund_predictions?id=eq.${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(updates)}).then(r=>r.ok).catch(()=>false);
@@ -780,6 +781,12 @@ async function scoreSectorsWithClaude(worldData, sectorMomentum){
   // Format headlines
   const headlineSummary=headlines.slice(0,24).map((h,i)=>`${i+1}. ${h}`).join('\n');
 
+  // Market lens — only included when user explicitly opts in per run
+  const lensKeywords=APP.applyLens?(activeProfile()?.marketLens||[]):[];
+  const lensBlock=lensKeywords.length
+    ? `\n=== YOUR MARKET LENS (active this run) ===\nThis user has flagged the following topics as personally significant: ${lensKeywords.join(', ')}. Where these topics intersect with the macro data or headlines above, weight them in your thesis and sector scoring accordingly. Do not invent signals — only apply this lens where the data supports it.\n`
+    : '';
+
   const prompt=`You are a quantitative portfolio strategist. Today is ${today}. Based on the data below, score each GICS sector for 90-day forward performance and generate an investment thesis.
 
 === FRED ECONOMIC DATA (latest readings) ===
@@ -790,6 +797,7 @@ ${momentumSummary}
 
 === RECENT GEOPOLITICAL & MARKET HEADLINES ===
 ${headlineSummary||'Use your current knowledge of global events'}
+${lensBlock}
 
 === INSTRUCTIONS ===
 1. For each of the 11 GICS sectors, assign a score 1–10 for expected 90-day performance. Consider: how do current macro conditions (rates, credit spreads, dollar strength, commodity prices) affect this sector? What geopolitical events create tailwinds or headwinds?
@@ -1379,13 +1387,16 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
     user_id:prof.id,
     created_at:now,
     closes_at:closesAt,
-    world_snapshot:JSON.stringify({fredData:worldData?.fredData,headlines:worldData?.headlines?.slice(0,10)}),
+    world_data_snapshot:JSON.stringify({fredData:worldData?.fredData,headlines:worldData?.headlines?.slice(0,10)}),
     investment_thesis:investmentThesis?.thesis||null,
     dominant_theme:investmentThesis?.dominantTheme||null,
     risk_factors:investmentThesis?.riskFactors||[],
     catalysts:investmentThesis?.catalysts||[],
     sector_scores:JSON.stringify(APP.sectorScores||{}),
-    risk_tolerance:prof.risk||5,
+    risk_level:prof.risk||5,
+    factor_weights:JSON.stringify(getWeights()),
+    lens_active:APP.applyLens&&(prof.marketLens||[]).length>0,
+    lens_keywords:APP.applyLens&&(prof.marketLens||[]).length>0?(prof.marketLens||[]):null,
   });
   
   if(!cycleResult){console.error('savePredictionCycle FAILED — check Supabase table schema and RLS policies');}
@@ -1393,15 +1404,21 @@ async function storePredictions(rankedFunds, worldData, investmentThesis, alloca
   // so index+1 is the predicted rank for this cycle)
   const predictions=rankedFunds.map((f,idx)=>({
     cycle_id:cycleId,
+    user_id:prof.id,
     fund_ticker:f.ticker,
-    predicted_composite:f.composite,
-    predicted_roi:f.roi,
+    fund_name:f.name||f.ticker,
+    composite_score:f.composite,
+    predicted_roi_90d:f.roi,
     predicted_tier:f.tier?.label||'NEUTRAL',
     predicted_rank:idx+1,
     nav_at_prediction:f.nav||null,
     nav_at_close:null,
-    actual_roi:null,
-    sector_breakdown:JSON.stringify(f.sectorBreakdown||{}),
+    roi_actual:null,
+    factor_scores:JSON.stringify({
+      worldThesis:f.worldThesisScore,momentum:f.momentum,riskAdj:f.riskAdj,
+      managerQuality:f.managerQuality,holdingsCoverage:f.holdingsCoverage,
+      sectorBreakdown:f.sectorBreakdown||{},
+    }),
     allocation_pct:allocationResult.find(a=>a.ticker===f.ticker)?.allocationPct||0,
     created_at:now,
   }));
@@ -1428,17 +1445,14 @@ async function checkAndUpdateClosedPredictions(){
       const preds=await supa.getFundPredictions(cycle.id);
       if(!preds?.length)continue;
       
-      const needsActual=preds.filter(p=>p.actual_roi===null&&p.nav_at_prediction!==null);
+      const needsActual=preds.filter(p=>p.roi_actual===null&&p.nav_at_prediction!==null);
       if(!needsActual.length)continue;
       
-      // Fetch current NAV for each fund that needs actual ROI
-      // Throttled to 300ms per fund to respect Tiingo rate limits.
-      // All funds are processed — no arbitrary cap.
       for(const pred of needsActual){
         const d=await fetchTiingo(pred.fund_ticker);
         if(d?.nav&&pred.nav_at_prediction){
           const actualRoi=((d.nav-pred.nav_at_prediction)/pred.nav_at_prediction)*100;
-          await supa.updateFundPrediction(pred.id,{nav_at_close:d.nav,actual_roi:+actualRoi.toFixed(3)});
+          await supa.updateFundPrediction(pred.id,{nav_at_close:d.nav,roi_actual:+actualRoi.toFixed(3)});
         }
         await sleep(300);
       }
@@ -1731,7 +1745,9 @@ function wizardFinish(){
   const id='user_'+Date.now();
   const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,
     goals:'',
-    funds:wizardData.funds,weights:DEFAULT_WEIGHTS,createdAt:new Date().toISOString()};
+    funds:wizardData.funds,weights:DEFAULT_WEIGHTS,
+    marketLens:[],  // user-defined keywords — opt-in per run, not auto-injected
+    createdAt:new Date().toISOString()};
   APP.profiles.push(profile);APP.activeProfile=id;saveProfiles();
   APP.wizard=false;
   APP.funds=wizardData.funds.map((f,i)=>({...f,...(SEED[f.ticker]||{composite:5,roi:0}),tier:getTierFromModZ(0),modZ:0,alert:ALERTS[f.ticker]||null}));
@@ -2221,21 +2237,21 @@ async function renderHistory(){
     const daysLeft=isClosed?0:Math.ceil((new Date(cycle.closes_at)-new Date())/86400000);
     
     // Top 3 predicted
-    const top3=(preds||[]).sort((a,b)=>b.predicted_composite-a.predicted_composite).slice(0,3);
+    const top3=(preds||[]).sort((a,b)=>b.composite_score-a.composite_score).slice(0,3);
     
     // Accuracy metrics (if closed)
     let accuracyHtml='';
-    if(isClosed&&preds?.some(p=>p.actual_roi!==null)){
-      const closed=preds.filter(p=>p.actual_roi!==null);
-      const mae=closed.reduce((s,p)=>s+Math.abs(p.predicted_roi-p.actual_roi),0)/closed.length;
-      const directional=closed.filter(p=>(p.predicted_roi>=0)===(p.actual_roi>=0)).length/closed.length;
+    if(isClosed&&preds?.some(p=>p.roi_actual!==null)){
+      const closed=preds.filter(p=>p.roi_actual!==null);
+      const mae=closed.reduce((s,p)=>s+Math.abs(p.predicted_roi_90d-p.roi_actual),0)/closed.length;
+      const directional=closed.filter(p=>(p.predicted_roi_90d>=0)===(p.roi_actual>=0)).length/closed.length;
       
       // Spearman IC (simplified rank correlation)
       const n=closed.length;
       let ic=null;
       if(n>=4){
-        const predRanks=rankArray(closed.map(p=>p.predicted_roi));
-        const actualRanks=rankArray(closed.map(p=>p.actual_roi));
+        const predRanks=rankArray(closed.map(p=>p.predicted_roi_90d));
+        const actualRanks=rankArray(closed.map(p=>p.roi_actual));
         const d2=predRanks.reduce((s,pr,i)=>s+Math.pow(pr-actualRanks[i],2),0);
         ic=+(1-(6*d2)/(n*(n*n-1))).toFixed(3);
       }
@@ -2249,12 +2265,12 @@ async function renderHistory(){
       </div>`;
       
       // Show predicted vs actual for each fund
-      const fundRows=closed.sort((a,b)=>b.predicted_composite-a.predicted_composite).map(p=>{
-        const err=p.actual_roi-p.predicted_roi;
+      const fundRows=closed.sort((a,b)=>b.composite_score-a.composite_score).map(p=>{
+        const err=(p.roi_actual||0)-(p.predicted_roi_90d||0);
         return`<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--bg);font-size:11px;align-items:center">
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700;width:50px">${p.fund_ticker}</span>
-          <span style="color:var(--text3);width:80px">pred: <b class="${p.predicted_roi>=0?'pos':'neg'}">${(p.predicted_roi>=0?'+':'')+p.predicted_roi.toFixed(1)}%</b></span>
-          <span style="color:var(--text3);width:80px">actual: <b class="${p.actual_roi>=0?'pos':'neg'}">${(p.actual_roi>=0?'+':'')+p.actual_roi.toFixed(1)}%</b></span>
+          <span style="color:var(--text3);width:80px">pred: <b class="${(p.predicted_roi_90d||0)>=0?'pos':'neg'}">${((p.predicted_roi_90d||0)>=0?'+':'')+(p.predicted_roi_90d||0).toFixed(1)}%</b></span>
+          <span style="color:var(--text3);width:80px">actual: <b class="${(p.roi_actual||0)>=0?'pos':'neg'}">${((p.roi_actual||0)>=0?'+':'')+(p.roi_actual||0).toFixed(1)}%</b></span>
           <span style="color:${Math.abs(err)<2?'var(--green)':Math.abs(err)<5?'var(--amber)':'var(--red)'}">err: ${err>=0?'+':''}${err.toFixed(1)}pp</span>
           <span class="badge ${p.predicted_tier==='BREAKAWAY'?'t1':p.predicted_tier==='STRONG'?'t1':p.predicted_tier==='SOLID'?'t2':p.predicted_tier==='NEUTRAL'?'t3':'t4'}" style="font-size:9px">${p.predicted_tier||'?'}</span>
         </div>`;
@@ -2270,11 +2286,11 @@ async function renderHistory(){
           <div style="font-size:11px;color:var(--text3)">${date.toLocaleTimeString()} · ${isClosed?'Closed — accuracy computed':`${daysLeft} days until close`}</div>
         </div>
         <div style="display:flex;gap:10px">
-          ${top3.map(f=>`<div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.fund_ticker}</div><div style="font-size:10px;color:var(--text3)">${(f.predicted_composite||0).toFixed(2)} · ${f.predicted_tier||'?'}</div></div>`).join('')}
+          ${top3.map(f=>`<div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${f.fund_ticker}</div><div style="font-size:10px;color:var(--text3)">${(f.composite_score||0).toFixed(2)} · ${f.predicted_tier||'?'}</div></div>`).join('')}
         </div>
       </div>
       ${cycle.investment_thesis?`<div style="padding:12px 18px;font-size:11px;color:var(--text2);line-height:1.6;border-bottom:1px solid var(--border)">${cycle.investment_thesis.slice(0,280)}…</div>`:''}
-      ${cycle.dominant_theme?`<div style="padding:8px 18px;font-size:11px;background:var(--surface2)"><b>Theme:</b> ${cycle.dominant_theme} · <b>Risk profile:</b> ${riskLabel(cycle.risk_tolerance||5)}</div>`:''}
+      ${cycle.dominant_theme?`<div style="padding:8px 18px;font-size:11px;background:var(--surface2)"><b>Theme:</b> ${cycle.dominant_theme} · <b>Risk profile:</b> ${riskLabel(cycle.risk_level||5)}</div>`:''}
       ${accuracyHtml?`<div style="padding:12px 18px">${accuracyHtml}</div>`:'<div style="padding:12px 18px;font-size:11px;color:var(--text3)">Actual ROI will be automatically calculated when this cycle closes in ${daysLeft} days.</div>'}
     </div>`;
   }));
@@ -2369,6 +2385,24 @@ function renderSettings(){
         </div></div>
       </div>
       
+      <!-- Market Lens -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div style="font-weight:700">Market Lens <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px">optional</span></div>
+          <div style="font-size:11px;color:var(--text3)">${(prof.marketLens||[]).length} keyword${(prof.marketLens||[]).length===1?'':'s'}</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">Keywords you add here can be applied to any run using the checkbox next to the Run Analysis button. When active, they tell Claude to weight related signals in its thesis — without changing what news is fetched. Leave this empty for clean, comparable runs.</p>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input type="text" id="lensInput" placeholder="Add keyword..." style="flex:1" onkeydown="if(event.key==='Enter')addLensKeyword()">
+            <button class="btn btn-ghost" onclick="addLensKeyword()">Add</button>
+          </div>
+          ${(prof.marketLens||[]).length?`<div style="display:flex;flex-wrap:wrap;gap:7px">
+            ${(prof.marketLens||[]).map(k=>`<span class="fund-chip"><span>${k}</span><button onclick="removeLensKeyword('${k.replace(/'/g,"\\'")}')">×</button></span>`).join('')}
+          </div>`:`<div style="font-size:11px;color:var(--text3);font-style:italic">No keywords added.</div>`}
+        </div>
+      </div>
+
       <!-- API keys info -->
       <div class="card" style="grid-column:1/-1">
         <div class="card-header"><div style="font-weight:700">Optional API Keys</div><div style="font-size:11px;color:var(--text3)">Set via Railway environment variables (Raw Editor)</div></div>
@@ -2432,6 +2466,18 @@ function addFundToProfile(){
 function removeFundFromProfile(ticker){
   const prof=activeProfile();if(!prof)return;
   prof.funds=prof.funds.filter(f=>f.ticker!==ticker);saveProfiles();render();
+}
+function addLensKeyword(){
+  const inp=document.getElementById('lensInput');
+  const k=(inp?.value||'').trim().toLowerCase();if(!k)return;
+  const prof=activeProfile();if(!prof)return;
+  prof.marketLens=prof.marketLens||[];
+  if(prof.marketLens.includes(k)){if(inp)inp.value='';return;}
+  prof.marketLens.push(k);saveProfiles();if(inp)inp.value='';render();
+}
+function removeLensKeyword(k){
+  const prof=activeProfile();if(!prof)return;
+  prof.marketLens=(prof.marketLens||[]).filter(x=>x!==k);saveProfiles();render();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2503,9 +2549,10 @@ async function renderApp(){
         <div class="app-logo">Fund<span>Lens</span></div>
         <div style="font-size:12px;color:var(--text3)">30–90 day tactical window · ${prof?.name||''} · ${APP.funds.length} funds · risk ${prof?.risk||5}/9</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${srcEl}
         ${holdingsCount>0?`<span style="font-size:11px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);padding:2px 10px;border-radius:10px;font-weight:600">${holdingsCount}/${APP.funds.length} w/ holdings</span>`:''}
+        ${(()=>{const lens=activeProfile()?.marketLens||[];return lens.length?`<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none;white-space:nowrap"><input type="checkbox" ${APP.applyLens?'checked':''} onchange="APP.applyLens=this.checked" style="accent-color:var(--accent)">Market lens <span style="color:var(--text2);font-family:'JetBrains Mono',monospace">(${lens.length})</span></label>`:'';})()}
         <button class="btn btn-primary" onclick="runPipeline()" ${APP.loading?'disabled':''} style="padding:7px 14px;font-size:12px">
           ${APP.loading?'<span class="spinner"></span>':'▶'} ${APP.source==='live'?'Refresh':'Run Analysis'}
         </button>
@@ -2550,9 +2597,12 @@ async function init(){
     APP.wizard=false;
     const prof=activeProfile();
     
-    // Preload holdings cache from Supabase
+    // Preload holdings cache from Supabase — filtered to this profile's funds only
+    // (BUG 9 FIX: was fetching ALL holdings without a fund filter — data leak + wasteful)
     try{
-      const rows=await supa.h.get('holdings_cache','?select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,indexed_at&order=indexed_at.desc');
+      const fundTickers=(prof.funds||DEFAULT_FUNDS).map(f=>f.ticker);
+      const inFilter=fundTickers.map(t=>`"${t}"`).join(',');
+      const rows=await supa.h.get('holdings_cache',`?fund_ticker=in.(${inFilter})&select=fund_ticker,holding_name,holding_ticker,weight,market_value,asset_type,sector,indexed_at&order=indexed_at.desc`);
       if(Array.isArray(rows)){
         const grouped={};
         rows.forEach(row=>{
@@ -2577,7 +2627,7 @@ async function init(){
     APP.funds=(prof.funds||DEFAULT_FUNDS).map(f=>({
       ...f,...(SEED[f.ticker]||{composite:5,roi:0}),
       tier:getTierFromModZ(0),modZ:0,momentum:5,riskAdj:5,
-      worldThesisScore:5,returnScore:5,sectorBreakdown:{},
+      worldThesisScore:5,managerQuality:5,holdingsCoverage:0,sectorBreakdown:{},
       alert:ALERTS[f.ticker]||null,
       holdings:APP.holdingsCache[f.ticker]?.holdings||null,
     }));
@@ -2598,52 +2648,49 @@ SUPABASE SCHEMA — Run these SQL statements in Supabase SQL editor
 to create the new tables required by FundLens v3:
 ═══════════════════════════════════════════════════════════════
 
--- Existing tables (keep as-is from v2):
--- holdings_cache, runs
+-- ═══════════════════════════════════════════════════════════════
+-- DATABASE SCHEMA — run in Supabase SQL Editor
+-- Live DB uses the blueprint schema. These are additive patches only.
+-- ═══════════════════════════════════════════════════════════════
 
--- NEW: Sector mapping cache (holds GICS classifications for fund holdings)
+-- PATCH: Add missing columns to prediction_cycles
+ALTER TABLE prediction_cycles ADD COLUMN IF NOT EXISTS lens_active BOOLEAN DEFAULT FALSE;
+ALTER TABLE prediction_cycles ADD COLUMN IF NOT EXISTS lens_keywords JSONB;
+
+-- PATCH: Add missing columns to fund_predictions
+ALTER TABLE fund_predictions ADD COLUMN IF NOT EXISTS predicted_tier TEXT;
+ALTER TABLE fund_predictions ADD COLUMN IF NOT EXISTS nav_at_close NUMERIC(12,4);
+
+-- CREATE: Sector mapping cache (GICS classifications for fund holdings)
 CREATE TABLE IF NOT EXISTS sector_mappings (
   ticker TEXT PRIMARY KEY,
-  sector TEXT,
+  sector TEXT NOT NULL,
   industry TEXT,
   cached_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE sector_mappings DISABLE ROW LEVEL SECURITY;
 
--- NEW: Prediction cycles (one record per analysis run)
-CREATE TABLE IF NOT EXISTS prediction_cycles (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  closes_at TIMESTAMPTZ,
-  world_snapshot JSONB,
-  investment_thesis TEXT,
-  dominant_theme TEXT,
-  risk_factors TEXT[],
-  catalysts TEXT[],
-  sector_scores JSONB,
-  risk_tolerance INT DEFAULT 5
+-- CREATE: Manager quality scores (Claude-assessed, 30-day cache)
+CREATE TABLE IF NOT EXISTS manager_scores (
+  ticker TEXT PRIMARY KEY,
+  score NUMERIC(4,2) NOT NULL DEFAULT 5,
+  reasoning TEXT,
+  cached_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE manager_scores DISABLE ROW LEVEL SECURITY;
 
--- NEW: Individual fund predictions per cycle
-CREATE TABLE IF NOT EXISTS fund_predictions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  cycle_id TEXT REFERENCES prediction_cycles(id),
-  fund_ticker TEXT NOT NULL,
-  predicted_composite FLOAT,
-  predicted_roi FLOAT,
-  predicted_tier TEXT,
-  predicted_rank INT,
-  nav_at_prediction FLOAT,
-  nav_at_close FLOAT,
-  actual_roi FLOAT,
-  sector_breakdown JSONB,
-  allocation_pct FLOAT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Reference: full prediction_cycles columns (blueprint schema, already live)
+-- id, user_id, created_at, closes_at, status, investment_thesis, dominant_theme,
+-- risk_factors, catalysts, sector_scores, risk_level, factor_weights,
+-- world_data_snapshot, accuracy_score, evaluated_at, lens_active*, lens_keywords*
+-- (* added by patch above)
 
--- Enable RLS (Row Level Security) if needed for multi-user:
--- ALTER TABLE prediction_cycles ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE fund_predictions ENABLE ROW LEVEL SECURITY;
+-- Reference: full fund_predictions columns (blueprint schema, already live)
+-- id, cycle_id, user_id, fund_ticker, fund_name, predicted_rank, composite_score,
+-- zscore, is_breakaway, predicted_roi_90d, nav_at_prediction, factor_scores,
+-- top_holdings_snapshot, allocation_pct, created_at, nav_current, roi_actual,
+-- last_tracked_at, predicted_tier*, nav_at_close*
+-- (* added by patch above)
 ═══════════════════════════════════════════════════════════════
 */
 </script>

@@ -9,9 +9,8 @@ const TIINGO_KEY     = process.env.TIINGO_KEY || '';
 const SUPA_URL       = process.env.SUPA_URL || '';
 const SUPA_KEY       = process.env.SUPA_KEY || '';
 const FRED_KEY       = process.env.FRED_KEY || '';
-const FMP_KEY        = process.env.FMP_KEY || '';
 const FINNHUB_KEY    = process.env.FINNHUB_KEY || '';
-const TWELVEDATA_KEY = process.env.TWELVEDATA_KEY || '';
+const TWELVEDATA_KEY = process.env.TWELVEDATA_KEY || '';  // Optional — set in Railway if available
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '5mb' }));
@@ -21,7 +20,6 @@ app.use(express.static(path.join(__dirname)));
 const tiingoDailyCache = {};
 const fredCache = {};
 const finnhubCache = {};     // 30min for news, 30d for fundamentals/metrics
-const fmpCache = {};
 const twelvedataCache = {};
 let gdeltLastCall = 0;
 
@@ -37,7 +35,7 @@ function isMarketOpen() {
   if (day === 0 || day === 6) return false;
   const h = et.getHours(), m = et.getMinutes();
   const mins = h * 60 + m;
-  return mins >= 570 && mins <= 960;
+  return mins >= 570 && mins < 960;
 }
 
 async function proxyFetch(url, options = {}) {
@@ -191,24 +189,9 @@ app.get('/api/treasury', async (req, res) => {
   }
 });
 
-// ── GET /api/fmp/* (legacy — FMP free tier is dead as of Aug 2025) ────────────
-app.get('/api/fmp/*', async (req, res) => {
-  const subpath = req.params[0];
-  const cacheKey = subpath;
-  if (fmpCache[cacheKey] && (Date.now() - fmpCache[cacheKey].fetchedAt) < 2592000000) {
-    return res.json(fmpCache[cacheKey].data);
-  }
-  const params = new URLSearchParams(req.query);
-  params.set('apikey', FMP_KEY);
-  try {
-    const r = await proxyFetch(`https://financialmodelingprep.com/api/v3/${subpath}?${params}`);
-    const data = await r.json();
-    fmpCache[cacheKey] = { data, fetchedAt: Date.now() };
-    res.json(data);
-  } catch (e) {
-    if (fmpCache[cacheKey]) return res.json(fmpCache[cacheKey].data);
-    res.status(500).json({ error: e.message });
-  }
+// ── GET /api/fmp/* (dead — FMP free tier dropped as of Aug 2025) ─────────────
+app.get('/api/fmp/*', (req, res) => {
+  res.status(410).json({ error: 'FMP free tier discontinued. Sector mapping uses Claude fallback.' });
 });
 
 // ── GET /api/twelvedata/* ────────────────────────────────────────────────────
@@ -340,12 +323,13 @@ app.get('/health', async (req, res) => {
   const tests = [
     test('anthropic', () => proxyFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] })
     }).then(r => { if (!r.ok && r.status !== 400) throw new Error(`${r.status}`); })),
     test('tiingo', () => proxyFetch('https://api.tiingo.com/api/test', { headers: { 'Authorization': `Token ${TIINGO_KEY}` } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('supabase', () => proxyFetch(`${SUPA_URL}/rest/v1/`, { headers: { 'apikey': SUPA_KEY } }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('fred', () => proxyFetch(`https://api.stlouisfed.org/fred/series?series_id=DFF&api_key=${FRED_KEY}&file_type=json`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('finnhub', () => proxyFetch(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=${FINNHUB_KEY}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
+    // Test actual EDGAR endpoint used in the holdings pipeline
     test('edgar', () => proxyFetch('https://www.sec.gov/files/company_tickers_mf.json', { headers: SEC_HEADERS }).then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
     test('gdelt', () => proxyFetch('https://api.gdeltproject.org/api/v2/doc/doc?query=market&mode=ArtList&maxrecords=1&format=json').then(r => { if (!r.ok) throw new Error(`${r.status}`); })),
   ];

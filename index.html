@@ -1654,6 +1654,7 @@ CATALYSTS: ${(investmentThesis?.catalysts||[]).join(', ')}
 Write a 400-word investor letter in plain English. The tone should match the risk profile: ${rtLabel}. 
 Structure: (1) What's happening in the world right now that matters for this portfolio, (2) Why these specific funds are recommended — what do the companies inside them DO that positions them well, (3) What to watch out for, (4) Clear statement of the recommendation.
 Use "you" and "your portfolio". Short sentences. No jargon without explanation. Readable grade 7-8.
+Always wrap fund tickers in **bold** (e.g. **PRPFX**) and wrap allocation percentages in **bold** (e.g. **35%**) every time they appear.
 Return ONLY the letter text, no JSON.`;
 
   try{
@@ -1853,12 +1854,12 @@ function restoreTiingoCache(){
 
 // Pipeline step definitions — shared by runPipeline (setPL/_patchOverlay) and renderPipelineOverlay
 const PL_STEPS=[
-  {label:'World Intelligence',desc:'FRED economic data (sequential, 10 series) + GDELT geopolitical news'},
-  {label:'Tiingo Prices + Sector ETFs',desc:'NAV, momentum, Sharpe + 11 sector ETF trends'},
-  {label:'Strategy + Mandate Scoring',desc:'Claude: 11 GICS sector scores → fund mandate scores vs. macro'},
-  {label:'EDGAR Holdings',desc:'SEC N-PORT filings — 90-day cache (runs in background)'},
-  {label:'Holdings Rollup',desc:'Map holdings → sectors → fund composite score'},
-  {label:'Allocation + Thesis',desc:'Risk-adjusted allocation + plain-English investor letter'},
+  {label:'World Intelligence',desc:'Pulling live economic data: interest rates, inflation, gold, oil, dollar strength, consumer sentiment, and today\'s market headlines'},
+  {label:'Fund Prices + Market Momentum',desc:'Fetching current NAV (fund price), recent price trends, and return quality (Sharpe ratio) — plus how each of the 11 market sectors is trending'},
+  {label:'Investment Case Formation',desc:'AI reads today\'s macro picture and scores each fund\'s strategy against current conditions — this is where the thesis is built'},
+  {label:'Fund Holdings — SEC EDGAR',desc:'Looking inside each fund to see what it actually owns: stocks, bonds, sectors — sourced from required government filings (cached 90 days, so this step is instant on repeat runs)'},
+  {label:'Holdings Rollup',desc:'Mapping each fund\'s actual holdings to market sectors, then scoring how well positioned each fund is for today\'s environment'},
+  {label:'Allocation + Investment Case',desc:'Building a risk-adjusted allocation and writing the plain-English investment case explaining why each fund ranks where it does'},
 ];
 async function runPipeline(){
   if(APP.loading)return;
@@ -2420,8 +2421,8 @@ function renderThesis(){
   
   if(!thesis&&!letter)return`<div style="padding:48px;text-align:center;color:var(--text3)">
     <div style="font-size:32px;margin-bottom:12px">📝</div>
-    <div style="font-size:16px;font-weight:600;color:var(--text2)">No thesis generated yet</div>
-    <p style="font-size:13px;margin-top:8px">Click Run Analysis to generate your first live investment thesis.</p>
+    <div style="font-size:16px;font-weight:600;color:var(--text2)">No briefing generated yet</div>
+    <p style="font-size:13px;margin-top:8px">Click Run Analysis to generate your first live market briefing.</p>
   </div>`;
   
   const sectorScores=APP.sectorScores||{};
@@ -2491,26 +2492,22 @@ function renderThesis(){
               // 1. Split on paragraph breaks first
               // 2. Within each paragraph, detect lines starting with "- **TICKER**" pattern
               //    and render them as individual bullet items instead of running together
+              // Post-process: bold fund tickers and allocation % even if Claude missed them
+              const boldify = html =>
+                html.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+                    .replace(/\b([A-Z]{4,6})\b/g,(m,t)=>APP.funds?.some(f=>f.ticker===t)?`<strong>${t}</strong>`:m)
+                    .replace(/(\b\d{1,3}(?:\.\d+)?%)/g,'<strong>$1</strong>');
               const paras = letter.split(/\n\n+/);
               return paras.map(para => {
                 const lines = para.split(/\n/).map(l => l.trim()).filter(Boolean);
                 // If any line in this paragraph looks like a fund bullet (starts with - ** or **TICKER)
                 const hasFundLines = lines.some(l => /^[-•]?\s*\*\*[A-Z]/.test(l));
                 if(hasFundLines && lines.length > 1){
-                  // Render each line as its own bullet
                   return '<ul class="thesis-bullets">' +
-                    lines.map(l => {
-                      const clean = l.replace(/^[-•]\s*/,'');
-                      // Bold the **text** markdown
-                      const html = clean.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-                      return '<li>'+html+'</li>';
-                    }).join('') +
+                    lines.map(l => '<li>'+boldify(l.replace(/^[-•]\s*/,''))+'</li>').join('') +
                   '</ul>';
                 }
-                // Single line or no fund bullets — render as paragraph
-                // Still process markdown bold within prose
-                const html = lines.join(' ').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-                return '<p>'+html+'</p>';
+                return '<p>'+boldify(lines.join(' '))+'</p>';
               }).join('');
             })()}</div>
           </div>
@@ -2519,7 +2516,7 @@ function renderThesis(){
         <!-- Technical thesis — split into prose + bullets -->
         ${thesis?.thesis?`<div class="card" style="margin-bottom:22px">
           <div class="card-header">
-            <div style="font-size:15px;font-weight:700">Technical Investment Thesis</div>
+            <div style="font-size:15px;font-weight:700">Market Analysis</div>
             <div style="font-size:11px;color:var(--text3)">${(()=>{
               const dq=APP.dataQuality;
               if(!dq)return'AI-generated · '+APP.lastRun;
@@ -3090,7 +3087,7 @@ function renderPipelineOverlay(){
   return`<div id="pl-overlay" style="position:fixed;inset:0;background:rgba(247,245,240,0.95);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center">
     <div class="card fade-in" style="width:480px;padding:32px;box-shadow:var(--shadow-md)">
       <div style="font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;margin-bottom:4px">Running Analysis</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">World conditions → strategy → holdings · EDGAR runs in background · 30–90 day tactical window</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Reads today's world → builds the investment case → scores all 22 funds · 30–90 day tactical window</div>
       <div class="pbar-wrap" style="height:6px;margin-bottom:24px"><div id="pl-pbar" class="pbar-fill" style="width:${pct}%;background:var(--green)"></div></div>
       ${steps.map((s,i)=>{
         const isDone=i<step-1,isActive=i===step-1;
@@ -3101,7 +3098,7 @@ function renderPipelineOverlay(){
         </div>`;
       }).join('')}
       <div style="margin-top:16px;padding:10px 12px;background:var(--surface2);border-radius:7px;font-size:11px;color:var(--text3)">
-        Estimated time: 3–5 minutes. SEC holdings fetch runs in the background during steps 1–3, so step 4 completes instantly when cached. Holdings cached 90 days — subsequent runs are significantly faster.
+        Estimated time: 3–5 minutes. Fund holdings (what each fund actually owns) are cached for 90 days — so after your first run, step 4 completes instantly and subsequent runs are significantly faster.
       </div>
     </div>
   </div>`;
@@ -3160,7 +3157,7 @@ async function renderApp(){
     </div>
     <!-- Tabs -->
     <div class="tabs">
-      ${[['rank','Rankings'],['thesis',`Thesis${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
+      ${[['rank','Rankings'],['thesis',`Investment Case${APP.investmentThesis?' ✦':''}`],['portfolio','Portfolio'],['holdings',`Holdings${holdingsCount?` (${holdingsCount})`:''}` ],['matrix','Score Matrix'],['history','History'],['settings','Settings']].map(([id,lbl])=>`<button class="tab${APP.tab===id?' on':''}" onclick="APP.tab='${id}';render()">${lbl}</button>`).join('')}
     </div>
     ${renderDataQualityWarning()}
     <div class="fade-in">${content}</div>

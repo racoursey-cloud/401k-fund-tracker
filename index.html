@@ -249,6 +249,16 @@ const FRED_SERIES = {
 
 const MONEY_MARKET_FUNDS = new Set(['FDRXX','ADAXX']);
 
+// COMPANY_CODES — maps a short code entered in the wizard to a named fund universe.
+// Add new companies here. funds: array of {ticker, name} objects.
+// To add a new company: COMPANY_CODES['XYZ26'] = { name: 'Company Name', funds: [...] }
+const COMPANY_CODES = {
+  'TA26': {
+    name: 'TerrAscend',
+    funds: DEFAULT_FUNDS  // The 22 TA 401K funds defined above
+  }
+};
+
 // ALERTS — TA department fund-specific research notes.
 // Surfaces in Investment Case risk factors for portfolio funds only.
 // Not shown in general UI. Expand as new intelligence arrives.
@@ -2253,66 +2263,219 @@ function renderDataQualityWarning(){
 // ═══════════════════════════════════════════════════════════════
 // WIZARD UI
 // ═══════════════════════════════════════════════════════════════
-let wizardData={name:'',risk:7,funds:[],fundInput:''};
+let wizardData={
+  name:'', risk:7, funds:[], fundInput:'',
+  companyCode:'', companyName:'', codeError:'',
+  weights:{...DEFAULT_WEIGHTS}  // user sets these in step 3
+};
 
 function renderWizard(){
   const step=APP.wizardStep;
-  const dots=[1,2,3].map(i=>`<div class="step-dot${i<=step?' on':''}"></div>`).join('');
-  
+  const TOTAL_STEPS=4;
+  const dots=[1,2,3,4].map(i=>`<div class="step-dot${i<=step?' on':''}"></div>`).join('');
+
+  const STEP_TITLES=['','Your Investor Profile','Your Fund Universe','What Matters to You','Ready to Go!'];
+  const STEP_SUBS=['',
+    'Tell us your name and — if your employer has a FundLens code — enter it to instantly load your 401K fund options.',
+    'Review the funds available in your 401K. You can add or remove tickers at any time.',
+    'These four factors drive how FundLens ranks your funds. Adjust them to reflect what you personally believe matters most.',
+    'FundLens will analyze the world right now and surface the funds built for this moment.'
+  ];
+
+  // ── FACTOR definitions for step 3 ──────────────────────────────────────────
+  const FACTORS=[
+    {key:'mandateScore', label:'Macro Fit', emoji:'🌍',
+     what:'How well does this fund\'s strategy match what\'s happening in the economy right now?',
+     why:'A fund built for rising inflation might hold gold and real assets. A fund built for growth might hold tech. Macro Fit scores whether the fund\'s DNA is right for today\'s conditions — not yesterday\'s.',
+     conservative:'Matters somewhat — you want funds that aren\'t fighting the macro tide.',
+     aggressive:'Matters a lot — you\'re betting on the macro call being right.'},
+    {key:'momentum',    label:'Market Feel', emoji:'📈',
+     what:'Is this fund already moving in the right direction? Recent 63-day price trend.',
+     why:'Markets often continue in the direction they\'re already moving. A fund that has been rising steadily in the current environment has the market\'s endorsement — not just an analyst\'s opinion.',
+     conservative:'Matters less — past movement doesn\'t guarantee safety.',
+     aggressive:'Matters a lot — you want funds the market is already rewarding.'},
+    {key:'riskAdj',     label:'Room to Run', emoji:'⚖️',
+     what:'Does this fund deliver returns without wild swings? (Sharpe ratio — return per unit of risk)',
+     why:'Two funds can both return 10%. One does it smoothly; one swings ±30% to get there. Room to Run rewards the smooth one. Higher is better — it means the fund earns its returns efficiently.',
+     conservative:'Matters most — you want steady returns, not a rollercoaster.',
+     aggressive:'Matters less — you\'re willing to accept volatility for bigger gains.'},
+    {key:'managerQuality',label:'Foundations', emoji:'🏛️',
+     what:'How consistently has this fund\'s management team executed over time?',
+     why:'Great macro timing and great momentum can still be undone by a poorly managed fund. Foundations checks the basics: expense ratio, manager tenure, parent company stability, and historical consistency.',
+     conservative:'Matters more — you want a fund you can trust to do what it says.',
+     aggressive:'Matters as a floor — you still don\'t want a badly run fund.'},
+  ];
+
   let body='';
+
+  // ── STEP 1: Name + Company Code ────────────────────────────────────────────
   if(step===1){
     body=`
       <div style="margin-bottom:20px">
         <label class="label" style="display:block;margin-bottom:6px">Your Name</label>
-        <input type="text" id="wName" placeholder="Your name" value="${wizardData.name}" oninput="wizardData.name=this.value" style="margin-bottom:14px">
-        <label class="label" style="display:block;margin-bottom:6px">Risk Tolerance
-          <span id="riskLabel" style="font-family:'JetBrains Mono',monospace;color:var(--text);margin-left:8px">${wizardData.risk}/9 — ${riskLabel(wizardData.risk)}</span>
+        <input type="text" id="wName" placeholder="First name or nickname" value="${wizardData.name}"
+          oninput="wizardData.name=this.value" style="margin-bottom:20px;width:100%">
+
+        <label class="label" style="display:block;margin-bottom:4px">
+          Company Code <span style="font-weight:400;color:var(--text3);font-size:11px">— optional</span>
         </label>
-        <input type="range" id="wRisk" min="1" max="9" value="${wizardData.risk}" oninput="wizardData.risk=parseInt(this.value);document.getElementById('riskLabel').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value))" style="width:100%;margin-bottom:6px;accent-color:var(--accent)">
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:16px"><span>1 — Protect capital above all</span><span>9 — Maximize gains, accept risk</span></div>
-        <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2);margin-bottom:14px">${riskDescription(wizardData.risk)}</div>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">
+          If your employer provided a FundLens code, enter it here to automatically load your 401K fund options. You can always add or remove funds in the next step.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <input type="text" id="wCode" placeholder="e.g. TA26"
+            value="${wizardData.companyCode}"
+            oninput="wizardData.companyCode=this.value.toUpperCase().trim();wizardData.codeError='';document.getElementById('codeMsg').textContent=''"
+            onkeydown="if(event.key==='Enter')applyCompanyCode()"
+            style="flex:1;text-transform:uppercase;font-family:'JetBrains Mono',monospace;letter-spacing:0.05em">
+          <button class="btn btn-primary" onclick="applyCompanyCode()">Apply</button>
+        </div>
+        <div id="codeMsg" style="font-size:11px;min-height:16px;margin-bottom:4px;
+          color:${wizardData.companyName?'var(--green)':wizardData.codeError?'var(--red)':'var(--text3)'}">
+          ${wizardData.companyName?'✓ '+wizardData.companyName+' — '+wizardData.funds.length+' funds loaded':wizardData.codeError||''}
+        </div>
       </div>`;
+
+  // ── STEP 2: Fund Universe ──────────────────────────────────────────────────
   }else if(step===2){
-    const chips=wizardData.funds.map(f=>`<span class="fund-chip"><span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span><button onclick="removeFund('${f.ticker}')">×</button></span>`).join(' ');
+    const chips=wizardData.funds.map(f=>`<span class="fund-chip">
+      <span style="font-family:'JetBrains Mono',monospace">${f.ticker}</span>
+      <button onclick="removeFund('${f.ticker}')">×</button>
+    </span>`).join(' ');
+    const preloaded=wizardData.companyName?`<div style="background:var(--green-bg);border:1px solid var(--green-bd);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--green);margin-bottom:12px">
+      ✓ Loaded ${wizardData.funds.length} funds from ${wizardData.companyName}. You can add or remove tickers below.
+    </div>`:'';
     body=`<div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">Add every mutual fund ticker available in your 401K. FundLens will fetch the actual companies inside each fund from SEC EDGAR and score every holding based on current macro conditions — then surface the funds that hold the right stocks for right now.</p>
+      ${preloaded}
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">
+        Add every mutual fund available in your 401K plan. FundLens will look inside each one — fetching actual holdings from SEC EDGAR — and score them based on what's happening in the world <em>right now</em>.
+      </p>
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <input type="text" id="fundInput" placeholder="e.g. VFINX" oninput="wizardData.fundInput=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')addFund()" value="${wizardData.fundInput}" style="flex:1;text-transform:uppercase">
+        <input type="text" id="fundInput" placeholder="e.g. VFINX" value="${wizardData.fundInput}"
+          oninput="wizardData.fundInput=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter')addFund()"
+          style="flex:1;text-transform:uppercase">
         <button class="btn btn-primary" onclick="addFund()">Add</button>
       </div>
-      <div style="margin-bottom:14px">
-        <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="loadTAFunds()" title="Load the TA department's 401K fund universe">📋 Load TA Funds</button>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chips}</div>
-      <p class="note">${wizardData.funds.length===0?'No funds added yet — type a ticker above or click Load TA Funds':wizardData.funds.length+' fund'+(wizardData.funds.length!==1?'s':'')+' in your universe'}</p>
+      ${!wizardData.companyName?`<div style="margin-bottom:12px">
+        <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="loadTAFunds()" title="Load TerrAscend 401K funds">
+          📋 Load TA Funds
+        </button>
+      </div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:28px">${chips}</div>
+      <p class="note">${wizardData.funds.length===0
+        ?'No funds added yet — type a ticker above or enter a company code on the previous step.'
+        :wizardData.funds.length+' fund'+(wizardData.funds.length!==1?'s':'')+' in your universe'}</p>
     </div>`;
+
+  // ── STEP 3: What Matters to You (Factor Weights) ───────────────────────────
+  }else if(step===3){
+    const W=wizardData.weights;
+    const tot=Object.values(W).reduce((s,v)=>s+v,0);
+    const totColor=tot===100?'var(--green)':Math.abs(tot-100)<=5?'var(--amber)':'var(--red)';
+
+    const factorRows=FACTORS.map(f=>{
+      const val=W[f.key]||0;
+      return`<div style="margin-bottom:20px;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div>
+            <div style="font-weight:600;font-size:13px">${f.emoji} ${f.label}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4">${f.what}</div>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;
+            color:var(--accent);flex-shrink:0;margin-left:12px" id="wz_${f.key}">${val}%</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value="${val}"
+          oninput="wizardUpdateWeight('${f.key}',parseInt(this.value))"
+          style="width:100%;accent-color:var(--accent);margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
+          <span>Conservative: ${f.conservative}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    body=`<div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+        FundLens scores every fund on four factors, then combines them into a single ranking. Use the sliders below to tell it what <em>you</em> believe matters most. There are no wrong answers — this is your investment philosophy.
+      </p>
+      ${factorRows}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;
+        background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Total weight</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:${totColor}" id="wz_total">${tot}% ${tot===100?'✓':'— must equal 100%'}</span>
+          <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="wizardNormalizeWeights()">Auto-balance</button>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label class="label" style="display:block;margin-bottom:4px">
+          Risk Tolerance
+          <span id="wz_riskLabel" style="font-family:'JetBrains Mono',monospace;color:var(--text);margin-left:8px">${wizardData.risk}/9 — ${riskLabel(wizardData.risk)}</span>
+        </label>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">
+          This controls how <em>concentrated</em> your allocation is — not what ranks highest. Higher = more money into fewer top-ranked funds.
+        </p>
+        <input type="range" min="1" max="9" step="1" value="${wizardData.risk}"
+          oninput="wizardData.risk=parseInt(this.value);document.getElementById('wz_riskLabel').textContent=this.value+'/9 — '+riskLabel(parseInt(this.value));document.getElementById('wz_riskDesc').textContent=riskDescription(parseInt(this.value))"
+          style="width:100%;accent-color:var(--accent);margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:8px">
+          <span>1 — Spread evenly across eligible funds</span><span>9 — Concentrate in top picks</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2)" id="wz_riskDesc">${riskDescription(wizardData.risk)}</div>
+      </div>
+    </div>`;
+
+  // ── STEP 4: Review + Launch ────────────────────────────────────────────────
   }else{
     const name=wizardData.name||'you';
-    body=`<div style="text-align:center;padding:20px 0">
-      <div style="font-size:48px;margin-bottom:16px">📊</div>
-      <h2 style="font-family:'Libre Baskerville',serif;font-size:22px;margin-bottom:10px">Ready, ${name}!</h2>
-      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:20px">FundLens will look inside each fund, score every holding based on what is happening in the world <em>right now</em>, and identify which funds are positioned for the next 30–90 days — not next year, not long-term. The right stocks for this moment.</p>
+    const W=wizardData.weights;
+    const topFactor=FACTORS.slice().sort((a,b)=>(W[b.key]||0)-(W[a.key]||0))[0];
+    body=`<div style="text-align:center;padding:16px 0">
+      <div style="font-size:44px;margin-bottom:14px">📊</div>
+      <h2 style="font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:8px">You're all set, ${name}!</h2>
+      <p style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:18px">
+        FundLens will look inside each fund, read today's world, and surface the funds positioned for the next 30–90 days.
+        <em>Not next year. Right now.</em>
+      </p>
       <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:left;font-size:12px;color:var(--text2)">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length}</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Risk Tolerance</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/9 (${riskLabel(wizardData.risk)})</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>Funds</span><span style="font-weight:700;color:var(--text)">${wizardData.funds.length} funds</span>
+        </div>
+        ${wizardData.companyName?`<div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>Company</span><span style="font-weight:700;color:var(--text)">${wizardData.companyName}</span>
+        </div>`:''}
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>Most important to you</span><span style="font-weight:700;color:var(--text)">${topFactor.emoji} ${topFactor.label} (${W[topFactor.key]}%)</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>Risk / Concentration</span><span style="font-weight:700;color:var(--text)">${wizardData.risk}/9 — ${riskLabel(wizardData.risk)}</span>
+        </div>
+        ${FACTORS.map(f=>`<div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="color:var(--text3)">${f.emoji} ${f.label}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px">${W[f.key]||0}%</span>
+        </div>`).join('')}
       </div>
+      <p style="font-size:10px;color:var(--text3);margin-top:12px">You can adjust all of these at any time in the Portfolio tab.</p>
     </div>`;
   }
-  
+
   return `<div class="wizard-wrap"><div class="wizard-card fade-in">
     <div class="wizard-header">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="app-logo">Fund<span>Lens</span></div><div class="step-dots">${dots}</div>
+        <div class="app-logo">Fund<span>Lens</span></div>
+        <div class="step-dots">${dots}</div>
       </div>
-      <h1 style="font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:4px">${['','Your Investor Profile','Your Fund Universe','Ready to Find the Right Stocks'][step]}</h1>
-      <p style="font-size:13px;color:var(--text2)">${['','Set your risk tolerance so FundLens knows how aggressively to concentrate your allocation in the top-ranked opportunities.','Add all funds available in your 401K plan.','FundLens will analyze what is happening in the world right now and identify which funds hold the right companies for this moment.'][step]}</p>
+      <h1 style="font-family:'Libre Baskerville',serif;font-size:20px;font-weight:700;margin-bottom:4px">${STEP_TITLES[step]}</h1>
+      <p style="font-size:12px;color:var(--text2)">${STEP_SUBS[step]}</p>
     </div>
     <div class="wizard-body">${body}</div>
     <div class="wizard-footer">
       <div>${step>1?`<button class="btn btn-ghost" onclick="APP.wizardStep--;render()">← Back</button>`:'<div></div>'}</div>
       <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:11px;color:var(--text3)">${step} of 3</span>
-        ${step<3?`<button class="btn btn-primary" onclick="wizardNext()">Continue →</button>`:`<button class="btn btn-green" onclick="wizardFinish()">▶ Start Analysis</button>`}
+        <span style="font-size:11px;color:var(--text3)">${step} of ${TOTAL_STEPS}</span>
+        ${step<TOTAL_STEPS
+          ?`<button class="btn btn-primary" onclick="wizardNext()">Continue →</button>`
+          :`<button class="btn btn-green" onclick="wizardFinish()">▶ Start Analysis</button>`}
       </div>
     </div>
   </div></div>`;
@@ -2333,23 +2496,89 @@ function riskDescription(rt){
 }
 
 function wizardNext(){
-  if(APP.wizardStep===1&&!wizardData.name.trim()){alert('Please enter your name.');return}
-  if(APP.wizardStep===2&&wizardData.funds.length===0){alert('Please add at least one fund.');return}
+  if(APP.wizardStep===1&&!wizardData.name.trim()){alert('Please enter your name.');return;}
+  if(APP.wizardStep===2&&wizardData.funds.length===0){alert('Please add at least one fund.');return;}
+  if(APP.wizardStep===3){
+    const tot=Object.values(wizardData.weights).reduce((s,v)=>s+v,0);
+    if(tot!==100){
+      // Auto-balance first, then advance so user sees the corrected values on the review step
+      const W=wizardData.weights;
+      if(tot>0){
+        Object.keys(W).forEach(k=>{W[k]=Math.round(W[k]/tot*100);});
+        const diff=100-Object.values(W).reduce((s,v)=>s+v,0);
+        const biggest=Object.entries(W).sort((a,b)=>b[1]-a[1])[0][0];
+        W[biggest]+=diff;
+        wizardData.weights=W;
+      }else{
+        wizardData.weights={...DEFAULT_WEIGHTS};
+      }
+    }
+  }
   APP.wizardStep++;render();
 }
 function wizardFinish(){
   const id='user_'+Date.now();
-  const profile={id,name:wizardData.name.trim()||'User',risk:wizardData.risk,
+  const profile={id,
+    name:wizardData.name.trim()||'User',
+    risk:wizardData.risk,
     goals:'',
-    funds:wizardData.funds,weights:DEFAULT_WEIGHTS,
-    marketLens:[],  // user-defined keywords — opt-in per run, not auto-injected
-    createdAt:new Date().toISOString()};
+    funds:wizardData.funds,
+    weights:{...wizardData.weights},
+    companyCode:wizardData.companyCode||'',
+    companyName:wizardData.companyName||'',
+    marketLens:[],
+    createdAt:new Date().toISOString()
+  };
   APP.profiles.push(profile);APP.activeProfile=id;saveProfiles();
   APP.wizard=false;
-  APP.funds=wizardData.funds.map((f,i)=>({...f,...(SEED[f.ticker]||{composite:5,roi:0}),tier:getTierFromModZ(0),modZ:0,alert:ALERTS[f.ticker]||null}));
+  APP.funds=wizardData.funds.map(f=>({...f,...(SEED[f.ticker]||{composite:5,roi:0}),tier:getTierFromModZ(0),modZ:0,alert:ALERTS[f.ticker]||null}));
   APP.selectedFund=APP.funds[0]?.ticker;
   render();
   setTimeout(runPipeline,100);
+}
+
+// Apply a company code entered in the wizard — loads funds if valid
+function applyCompanyCode(){
+  const code=(wizardData.companyCode||'').toUpperCase().trim();
+  if(!code){wizardData.codeError='Please enter a code.';render();return;}
+  const entry=COMPANY_CODES[code];
+  if(!entry){wizardData.codeError='Code "'+code+'" not recognised. Check with your employer.';wizardData.companyName='';render();return;}
+  // Load funds — merge without duplicating
+  const existing=new Set(wizardData.funds.map(f=>f.ticker));
+  entry.funds.forEach(f=>{if(!existing.has(f.ticker))wizardData.funds.push({...f});});
+  wizardData.companyName=entry.name;
+  wizardData.codeError='';
+  render();
+}
+
+// Normalize wizard weights to 100% proportionally
+function wizardNormalizeWeights(){
+  const W=wizardData.weights;
+  const tot=Object.values(W).reduce((s,v)=>s+v,0);
+  if(tot===0){wizardData.weights={...DEFAULT_WEIGHTS};render();return;}
+  if(tot===100)return;
+  Object.keys(W).forEach(k=>{W[k]=Math.round(W[k]/tot*100);});
+  // Fix rounding residual on largest key
+  const diff=100-Object.values(W).reduce((s,v)=>s+v,0);
+  const biggest=Object.entries(W).sort((a,b)=>b[1]-a[1])[0][0];
+  W[biggest]+=diff;
+  wizardData.weights=W;
+  render();
+}
+
+// Update a single weight in the wizard and refresh totals live
+function wizardUpdateWeight(key,val){
+  wizardData.weights[key]=val;
+  const tot=Object.values(wizardData.weights).reduce((s,v)=>s+v,0);
+  const totEl=document.getElementById('wz_total');
+  const valEl=document.getElementById('wz_'+key);
+  if(valEl)valEl.textContent=val+'%';
+  if(totEl){
+    const ok=tot===100;
+    const close=Math.abs(tot-100)<=5;
+    totEl.textContent=tot+'%'+(ok?' ✓':' — must equal 100%');
+    totEl.style.color=ok?'var(--green)':close?'var(--amber)':'var(--red)';
+  }
 }
 function addFund(){
   const t=(wizardData.fundInput||'').trim().toUpperCase();

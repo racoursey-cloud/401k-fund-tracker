@@ -1887,6 +1887,17 @@ function saveRunState(){
       prevINDPRO:         APP.prevINDPRO,
       dominantTheme:      APP.dominantTheme,
       sectorScores:       APP.sectorScores,
+      // Save scored fund objects so factor scores survive page reloads.
+      // Without this, mandateScore/momentum/riskAdj/managerQuality are undefined
+      // on reload and fall back to 5.0 in the radar sidebar.
+      funds: APP.funds?.length ? APP.funds.map(f=>({
+        ticker:f.ticker, name:f.name, composite:f.composite, roi:f.roi,
+        mandateScore:f.mandateScore, mandateReasoning:f.mandateReasoning,
+        momentum:f.momentum, riskAdj:f.riskAdj, managerQuality:f.managerQuality,
+        worldThesisScore:f.worldThesisScore, holdingsCoverage:f.holdingsCoverage,
+        modZ:f.modZ, tier:f.tier, nav:f.nav,
+        sectorBreakdown:f.sectorBreakdown, alert:f.alert,
+      })) : null,
       // Store only the lightweight thesis fields — not the full investor letter
       investmentThesis:   APP.investmentThesis?{
         thesis:         APP.investmentThesis.thesis,
@@ -1912,6 +1923,13 @@ function restoreRunState(){
     if(s.dominantTheme)      APP.dominantTheme       = s.dominantTheme;
     if(s.sectorScores)       APP.sectorScores        = s.sectorScores;
     if(s.investmentThesis)   APP.investmentThesis    = s.investmentThesis;
+    // Restore scored fund objects — merge saved scores back into APP.funds
+    // so factor scores show correctly on reload without re-running the pipeline.
+    if(s.funds?.length){
+      const scoreMap=Object.fromEntries(s.funds.map(f=>[f.ticker,f]));
+      APP.funds=APP.funds.map(f=>scoreMap[f.ticker]?{...f,...scoreMap[f.ticker]}:f);
+      APP.selectedFund=APP.selectedFund||APP.funds[0]?.ticker;
+    }
     console.log('Run state restored from localStorage'+(s.prevRunAt?` (last run: ${new Date(s.prevRunAt).toLocaleString()})`:''));
   }catch(e){ console.warn('restoreRunState failed:',e.message); }
 }
@@ -2683,10 +2701,10 @@ function renderRank(){
         </div>
         <div class="radar-wrap" style="margin-bottom:16px"><svg width="200" height="200" viewBox="0 0 240 240" overflow="visible">${radarSVG}</svg></div>
         ${[
-          ['Macro Fit',    sel.mandateScore||5,    getWeights().mandateScore,   sel.mandateReasoning||''],
-          ['Market Feel',  sel.momentum||5,         getWeights().momentum,        ''],
-          ['Room to Run',  sel.riskAdj||5,          getWeights().riskAdj,         ''],
-          ['Foundations',  sel.managerQuality||5,   getWeights().managerQuality,  APP.managerScores?.[sel.ticker]?.reasoning||''],
+          ['Macro Fit',    sel.mandateScore??5,    getWeights().mandateScore,   sel.mandateReasoning||''],
+          ['Market Feel',  sel.momentum??5,         getWeights().momentum,        ''],
+          ['Room to Run',  sel.riskAdj??5,          getWeights().riskAdj,         ''],
+          ['Foundations',  sel.managerQuality??5,   getWeights().managerQuality,  APP.managerScores?.[sel.ticker]?.reasoning||''],
         ].map(([lbl,val,wt,tooltip])=>`<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
             <span style="font-size:11px;font-weight:600;color:var(--text2)${tooltip?' cursor:help':''}" ${tooltip?`title="${tooltip.replace(/"/g,"'")}"`:''}>
@@ -2695,7 +2713,7 @@ function renderRank(){
             <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">${(val||0).toFixed(1)}</span>
           </div>
           <div class="pbar-wrap"><div class="pbar-fill" style="width:${(val||0)*10}%;background:${tier.color}"></div></div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">weight ${wt}%</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px" id="sw_${lbl==='Macro Fit'?'mandateScore':(lbl==='Market Feel'?'momentum':(lbl==='Room to Run'?'riskAdj':'managerQuality'))}">weight ${wt}%</div>
         </div>`).join('')}
         ${sel.holdingsCoverage!=null?`<div style="padding:8px 10px;background:var(--surface2);border-radius:6px;margin-top:4px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -2733,7 +2751,7 @@ function buildRadarSVG(fund,dims,color,cx,cy,r){
     svg+=`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="var(--border)" stroke-width="1"/>`;
     svg+=`<text x="${lx}" y="${ly}" fill="var(--text2)" font-size="11" font-weight="700" font-family="Manrope,sans-serif" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`;
   });
-  const pts=dims.map((d,i)=>{const a=-90+i*(360/N);const v=Math.min(fund[d.key]||0,10)/10;return`${cx+r*v*Math.cos(rd(a))},${cy+r*v*Math.sin(rd(a))}`}).join(' ');
+  const pts=dims.map((d,i)=>{const a=-90+i*(360/N);const v=Math.min(fund[d.key]??0,10)/10;return`${cx+r*v*Math.cos(rd(a))},${cy+r*v*Math.sin(rd(a))}`}).join(' ');
   svg+=`<polygon points="${pts}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="1.5"/>`;
   return svg;
 }
@@ -3372,6 +3390,11 @@ function updateWeight(key,val){
   document.querySelectorAll('[id^="w_"]').forEach(el=>{const k=el.id.replace('w_','');if(prof.weights[k]!==undefined)el.textContent=prof.weights[k]+'%'});
   const totEl=document.getElementById('weightTotal');
   if(totEl){totEl.textContent=tot+'%';totEl.style.color=tot===100?'var(--green)':Math.abs(tot-100)<=5?'var(--amber)':'var(--red)';}
+  // Also sync the sidebar weight labels on the Rankings tab (sw_ prefix)
+  const sidebarEl=document.getElementById('sw_'+key);
+  if(sidebarEl)sidebarEl.textContent='weight '+val+'%';
+  // And the header weights bar
+  document.querySelectorAll('[id^="hw_"]').forEach(el=>{const k=el.id.replace('hw_','');if(prof.weights[k]!==undefined)el.textContent=k in prof.weights?prof.weights[k]+'%':el.textContent;});
 }
 function normalizeWeights(){
   const prof=activeProfile();if(!prof)return;
